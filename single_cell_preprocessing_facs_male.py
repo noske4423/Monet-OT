@@ -88,6 +88,7 @@ tissue_dict = {}
 for age in ['3m', '18m', '24m']:
     tissue_dict[age] = define_function.split_adata_by_attribute(age_dict[age], 'tissue')
 
+'''
 # save the PCA and umap plot for each tissue
 
 for tissue in list(tissue_dict['3m'].keys()):
@@ -116,13 +117,52 @@ for tissue in list(tissue_dict['3m'].keys()):
     sc.pl.umap(integrate_adata, color=['age','cell_ontology_class'], save=f'_facs_male_18m_24m_{tissue}.png',
                title=['facs_male_18m_24m_' + tissue,'facs_male_18m_24m_' + tissue])
 
-os.chdir(original_dir)  # Change the current directory back to the original folder
-
+'''
 tissue_3_18_dict, ontology_3_18_dict, ontology_3_18_list, ontology_3_18_list_dict = define_function.process_adata_by_age(
     age_dict, ['3m', '18m'])
+# ontology_3_18_list: the list of ontology that exists in both 3m and 18m
+# ontolofy_3_18_list_dict[tissue]: the list of ontology that exists in both 3m and 18m in tissue
+# ontology_3_18_dict[age][tissue]: the adata of age and tissue
+
 tissue_18_24_dict, ontology_18_24_dict, ontology_18_24_list, ontology_18_24_list_dict = define_function.process_adata_by_age(
     age_dict, ['18m', '24m'])
+# ontology_18_24_list: the list of ontology that exists in both 18m and 24m
+# ontolofy_18_24_list_dict[tissue]: the list of ontology that exists in both 18m and 24m in tissue
+# ontology_18_24_dict[age][tissue][ontology]: the adata of age and tissue and ontology
 
+# save the PCA and umap plot for each cell ontology
+for tissue in list(ontology_3_18_list_dict.keys()):
+    for ontology in ontology_3_18_list_dict[tissue]:
+        integrate_adata=ad.concat([ontology_3_18_dict['3m'][tissue][ontology], ontology_3_18_dict['18m'][tissue][ontology]])
+
+        # PCA
+        sc.tl.pca(integrate_adata, n_comps=20)
+        sc.pl.pca(integrate_adata, components='1,2', color='age',save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
+                  title='facs_male_3m_18m_' + tissue + '_' + ontology)
+
+        # umap
+        sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+        sc.tl.umap(integrate_adata)
+        sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
+                   title='facs_male_3m_18m_' + tissue + '_' + ontology)
+
+for tissue in list(ontology_18_24_list_dict.keys()):
+    for ontology in ontology_18_24_list_dict[tissue]:
+        integrate_adata = ad.concat(
+            [ontology_18_24_dict['18m'][tissue][ontology], ontology_3_18_dict['24m'][tissue][ontology]])
+
+        # PCA
+        sc.tl.pca(integrate_adata, n_comps=20)
+        sc.pl.pca(integrate_adata, components='1,2', color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
+                  title='facs_male_18m_24m_' + tissue + '_' + ontology)
+
+        # umap
+        sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+        sc.tl.umap(integrate_adata)
+        sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
+                   title='facs_male_18m_24m_' + tissue + '_' + ontology)
+
+os.chdir(original_dir)  # Change the current directory back to the original folder
 '''
 tissue_3_18_dict = {}
 for age in ['3m', '18m']:

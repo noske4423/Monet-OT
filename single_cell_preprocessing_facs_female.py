@@ -59,3 +59,5 @@ for age in ages:
 
 os.chdir(folder_path)  # Change the current directory to the desired folder
 
+# save the PCA and umap plot for each tissue
+for tissue in list(tissue_dict[ages[0]].keys()):

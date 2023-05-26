@@ -88,36 +88,54 @@ tissue_dict = {}
 for age in ['3m', '18m', '24m']:
     tissue_dict[age] = define_function.split_adata_by_attribute(age_dict[age], 'tissue')
 
-'''
+
 # save the PCA and umap plot for each tissue
+for tissue in list(tissue_dict['3m'].keys()):
+    # PCA
+    sc.pl.pca(tissue_dict['3m'], components='1,2', color=['age','cell_ontology_class'], save=f'_facs_male_3m_{tissue}.png',
+              title=['facs_male_3m_' + tissue, 'facs_male_3m_' + tissue])
+    sc.pl.pca(tissue_dict['18m'], components='1,2', color=['age', 'cell_ontology_class'],
+              save=f'_facs_male_18m_{tissue}.png',
+              title=['facs_male_18m_' + tissue, 'facs_male_18m_' + tissue])
+    sc.pl.pca(tissue_dict['24m'], components='1,2', color=['age', 'cell_ontology_class'],
+              save=f'_facs_male_24m_{tissue}.png',
+              title=['facs_male_24m_' + tissue, 'facs_male_24m_' + tissue])
+
+    # umap
+    sc.pl.umap(tissue_dict['3m'], color=['age', 'cell_ontology_class'], save=f'_facs_male_3m_{tissue}.png',
+               title=['facs_male_3m_' + tissue, 'facs_male_3m_' + tissue])
+    sc.pl.umap(tissue_dict['18m'], color=['age', 'cell_ontology_class'], save=f'_facs_male_18m_{tissue}.png',
+               title=['facs_male_18m_' + tissue, 'facs_male_18m_' + tissue])
+    sc.pl.umap(tissue_dict['24m'], color=['age', 'cell_ontology_class'], save=f'_facs_male_24m_{tissue}.png',
+               title=['facs_male_24m_' + tissue, 'facs_male_24m_' + tissue])
 
 for tissue in list(tissue_dict['3m'].keys()):
     integrate_adata = ad.concat([tissue_dict['3m'][tissue], tissue_dict['18m'][tissue]])
 
     # PCA
-    sc.tl.pca(integrate_adata, n_comps=20)
+    #sc.tl.pca(integrate_adata, n_comps=20)
     sc.pl.pca(integrate_adata, components='1,2', color=['age','cell_ontology_class'], save=f'_facs_male_3m_18m_{tissue}.png',
               title=['facs_male_3m_18m_' + tissue, 'facs_male_3m_18m_' + tissue])
 
     # umap
-    sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
-    sc.tl.umap(integrate_adata)
+    #sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+    #sc.tl.umap(integrate_adata)
     sc.pl.umap(integrate_adata, color=['age','cell_ontology_class'], save=f'_facs_male_3m_18m_{tissue}.png', title=['facs_male_3m_18m_' + tissue,'facs_male_3m_18m_' + tissue])
 
     integrate_adata = ad.concat([tissue_dict['18m'][tissue], tissue_dict['24m'][tissue]])
 
     # PCA
-    sc.tl.pca(integrate_adata, n_comps=20)
+    #sc.tl.pca(integrate_adata, n_comps=20)
     sc.pl.pca(integrate_adata, components='1,2', color=['age','cell_ontology_class'], save=f'_facs_male_18m_24m_{tissue}.png',
               title=['facs_male_18m_24m_' + tissue,'facs_male_18m_24m_' + tissue])
 
     # umap
-    sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
-    sc.tl.umap(integrate_adata)
+    #sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+    #sc.tl.umap(integrate_adata)
     sc.pl.umap(integrate_adata, color=['age','cell_ontology_class'], save=f'_facs_male_18m_24m_{tissue}.png',
                title=['facs_male_18m_24m_' + tissue,'facs_male_18m_24m_' + tissue])
 
-'''
+
 tissue_3_18_dict, ontology_3_18_dict, ontology_3_18_list, ontology_3_18_list_dict = define_function.process_adata_by_age(
     age_dict, ['3m', '18m'])
 # ontology_3_18_list: the list of ontology that exists in both 3m and 18m

@@ -136,29 +136,29 @@ for tissue in list(ontology_3_18_list_dict.keys()):
         integrate_adata=ad.concat([ontology_3_18_dict['3m'][tissue][ontology], ontology_3_18_dict['18m'][tissue][ontology]])
 
         # PCA
-        sc.tl.pca(integrate_adata, n_comps=20)
+        #sc.tl.pca(integrate_adata, n_comps=20)
         sc.pl.pca(integrate_adata, components='1,2', color='age',save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
                   title='facs_male_3m_18m_' + tissue + '_' + ontology)
 
         # umap
-        sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
-        sc.tl.umap(integrate_adata)
+        #sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+        #sc.tl.umap(integrate_adata)
         sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
                    title='facs_male_3m_18m_' + tissue + '_' + ontology)
 
 for tissue in list(ontology_18_24_list_dict.keys()):
     for ontology in ontology_18_24_list_dict[tissue]:
         integrate_adata = ad.concat(
-            [ontology_18_24_dict['18m'][tissue][ontology], ontology_3_18_dict['24m'][tissue][ontology]])
+            [ontology_18_24_dict['18m'][tissue][ontology], ontology_18_24_dict['24m'][tissue][ontology]])
 
         # PCA
-        sc.tl.pca(integrate_adata, n_comps=20)
+        #sc.tl.pca(integrate_adata, n_comps=20)
         sc.pl.pca(integrate_adata, components='1,2', color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
                   title='facs_male_18m_24m_' + tissue + '_' + ontology)
 
         # umap
-        sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
-        sc.tl.umap(integrate_adata)
+        #sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+        #sc.tl.umap(integrate_adata)
         sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
                    title='facs_male_18m_24m_' + tissue + '_' + ontology)
 

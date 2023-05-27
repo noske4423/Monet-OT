@@ -3,7 +3,7 @@ import numpy as np
 import scanpy as sc
 import random
 import ot
-
+import matplotlib.pylab as pl
 
 def sort_adata_by_attribute(adata, attribute):
     """Sorts an AnnData object by the specified attribute.
@@ -63,7 +63,7 @@ def process_adata_by_age(age_dict, ages):
         ontology_dict[age] = {}
         for tissue in list(tissue_dict[age].keys()):
             ontology_dict[age][tissue] = split_adata_by_attribute(tissue_dict[age][tissue],
-                                                                                  'cell_ontology_class')
+                                                                  'cell_ontology_class')
 
     for tissue in list(ontology_dict[ages[0]].keys()):
         ontology_list_dict[tissue] = []
@@ -84,6 +84,43 @@ def process_adata_by_age(age_dict, ages):
                     ontology_dict_new[age][tissue][ontology] = ontology_dict[age][tissue][ontology]
 
     return tissue_dict, ontology_dict_new, ontology_list, ontology_list_dict
+
+
+def adjust_and_save_plot(adata, title, method, min_value_1, max_value_1, min_value_2, max_value_2, xlabel, ylabel, color):
+    """Adjusts and saves a plot.
+
+    Args:
+        adata (AnnData): The input AnnData object.
+        title (str): The title of the plot.
+        method (str): The method used to generate the plot.
+        xlabel (str): The label of the x-axis.
+        ylabel (str): The label of the y-axis.
+        color (str): The color of the plot.
+    """
+    if method == 'pca':
+        fig = sc.pl.pca(adata, color=color, return_fig=True)
+        ax = fig.gca()
+        ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                    max_value_1 + (max_value_1 - min_value_1) * 0.05)
+        ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                    max_value_2 + (max_value_2 - min_value_2) * 0.05)
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        pl.savefig(title + '.png')
+
+    elif method == 'umap':
+        fig = sc.pl.umap(adata, color=color, return_fig=True)
+        ax = fig.gca()
+        ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                    max_value_1 + (max_value_1 - min_value_1) * 0.05)
+        ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                    max_value_2 + (max_value_2 - min_value_2) * 0.05)
+        ax.set_title(title)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        pl.savefig(title + '.png')
+
 
 def extract_edges_above_threshold(g, thr):
     """Extracts edges from a matrix with values above a specified threshold.

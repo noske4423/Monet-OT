@@ -444,5 +444,5 @@ for cnsecutive_time_point in cnsecutive_time_points:
 
 # save cell_ontology_class_tissue_age_analyzed_dict as csv
 cell_ontology_class_tissue_age_analyzed_dict_df = pd.DataFrame.from_dict(cell_ontology_class_tissue_age_analyzed_dict, orient='index')
-cell_ontology_class_tissue_age_analyzed_dict_df.to_csv(f'data/{folder_name}/{}_cell_ontology_class_tissue_age_analyzed.csv')
+cell_ontology_class_tissue_age_analyzed_dict_df.to_csv(f'data/{folder_name}/{folder_name}_cell_ontology_class_tissue_age_analyzed.csv')
 

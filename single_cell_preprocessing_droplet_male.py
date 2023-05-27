@@ -28,14 +28,14 @@ import os
 # Set up the folder to save the images
 now = datetime.now()
 date_str = now.strftime("%Y-%m-%d")
-folder_name = 'facs_female'
+folder_name = 'droplet_male'
 folder_path = f'./image/{date_str}/{folder_name}'
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
 
 print(1)
-GENE_facs = 'data/facs/tabula-muris-senis-facs-processed-official-annotations.h5ad'
-adata = sc.read_h5ad(GENE_facs)  # read the data
+GENE_droplet = 'data/droplet/tabula-muris-senis-droplet-processed-official-annotations.h5ad'
+adata = sc.read_h5ad(GENE_droplet)  # read the data
 print(2)
 print(adata)
 print(adata.obs)
@@ -46,7 +46,7 @@ print(adata.var)
 # adata.obs: stores observation annotation (usually one row per cell) as data frame.
 # adata.var: stores variable annotation (usually one column per gene) as data frame.
 
-adata = adata[adata.obs.sex == 'female']  # select only male cells
+adata = adata[adata.obs.sex == 'male']  # select only male cells
 
 define_function.plot_mean_expression(adata, folder_path, folder_name)  # plot the mean expression of each gene
 define_function.plot_highest_expr_genes(adata, folder_path, folder_name)  # plot the highest expression genes

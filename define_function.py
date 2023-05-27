@@ -98,34 +98,63 @@ def adjust_and_save_plot(adata, folder_path,title, method, min_value_1, max_valu
         ylabel (str): The label of the y-axis.
         color (str): The color of the plot.
     """
-    if method == 'pca':
-        # sc.set_figure_params(figsize=[12, 6])
-        fig = sc.pl.pca(adata, color=color, return_fig=True)
-        ax = fig.gca()
-        ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
-                    max_value_1 + (max_value_1 - min_value_1) * 0.05)
-        ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
-                    max_value_2 + (max_value_2 - min_value_2) * 0.05)
-        ax.set_title(title)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        legend = ax.get_legend()
 
-        pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
+    if method == 'pca':
+        if color == None:
+            fig = sc.pl.pca(adata, color=color, return_fig=True)
+            ax = fig.gca()
+            ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                        max_value_1 + (max_value_1 - min_value_1) * 0.05)
+            ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                        max_value_2 + (max_value_2 - min_value_2) * 0.05)
+            ax.set_title(title)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+
+            pl.savefig(f'{folder_path}/{title}.png')
+
+        else:
+            # sc.set_figure_params(figsize=[12, 6])
+            fig = sc.pl.pca(adata, color=color, return_fig=True)
+            ax = fig.gca()
+            ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                        max_value_1 + (max_value_1 - min_value_1) * 0.05)
+            ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                        max_value_2 + (max_value_2 - min_value_2) * 0.05)
+            ax.set_title(title)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            legend = ax.get_legend()
+
+            pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
 
     elif method == 'umap':
-        fig = sc.pl.umap(adata, color=color, return_fig=True)
-        ax = fig.gca()
-        ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
-                    max_value_1 + (max_value_1 - min_value_1) * 0.05)
-        ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
-                    max_value_2 + (max_value_2 - min_value_2) * 0.05)
-        ax.set_title(title)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
-        legend = ax.get_legend()
+        if color == None:
+            fig = sc.pl.umap(adata, color=color, return_fig=True)
+            ax = fig.gca()
+            ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                        max_value_1 + (max_value_1 - min_value_1) * 0.05)
+            ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                        max_value_2 + (max_value_2 - min_value_2) * 0.05)
+            ax.set_title(title)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
 
-        pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
+            pl.savefig(f'{folder_path}/{title}.png')
+
+        else:
+            fig = sc.pl.umap(adata, color=color, return_fig=True)
+            ax = fig.gca()
+            ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                        max_value_1 + (max_value_1 - min_value_1) * 0.05)
+            ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                        max_value_2 + (max_value_2 - min_value_2) * 0.05)
+            ax.set_title(title)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+            legend = ax.get_legend()
+
+            pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
 
 
 def extract_edges_above_threshold(g, thr):

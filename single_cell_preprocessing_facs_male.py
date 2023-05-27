@@ -32,7 +32,6 @@ folder_name = 'facs_male'
 folder_path = f'./image/{date_str}/{folder_name}'
 if not os.path.exists(folder_path):
     os.makedirs(folder_path)
-original_dir = os.getcwd()  # Save the original directory
 
 print(1)
 GENE_facs = 'data/facs/tabula-muris-senis-facs-processed-official-annotations.h5ad'
@@ -48,6 +47,37 @@ print(adata.var)
 # adata.var: stores variable annotation (usually one column per gene) as data frame.
 
 adata = adata[adata.obs.sex == 'male']  # select only male cells
+
+# pca
+first_component_pca = adata.obsm['X_pca'][:, 0]
+second_component_pca = adata.obsm['X_pca'][:, 1]
+
+max_value_pca_1 = first_component_pca.max()
+min_value_pca_1 = first_component_pca.min()
+max_value_pca_2 = second_component_pca.max()
+min_value_pca_2 = second_component_pca.min()
+
+define_function.adjust_and_save_plot(adata, folder_path, f'pca_{folder_name}_age,', 'pca', min_value_pca_1,
+                                     max_value_pca_1,
+                                     min_value_pca_2, max_value_pca_2, 'PC1', 'PC2', 'age')
+define_function.adjust_and_save_plot(adata, folder_path, f'pca_{folder_name}_age,', 'pca', min_value_pca_1,
+                                     max_value_pca_1,
+                                     min_value_pca_2, max_value_pca_2, 'PC1', 'PC2', 'tissue')
+
+# umap
+first_component_umap = adata.obsm['X_umap'][:, 0]
+second_component_umap = adata.obsm['X_umap'][:, 1]
+
+max_value_umap_1 = first_component_umap.max()
+min_value_umap_1 = first_component_umap.min()
+max_value_umap_2 = second_component_umap.max()
+min_value_umap_2 = second_component_umap.min()
+
+define_function.adjust_and_save_plot(adata, folder_path, f'umap_{folder_name}_age,', 'umap', min_value_umap_1,
+                                     max_value_umap_1, min_value_umap_2, max_value_umap_2, 'UMAP1', 'UMAP2', 'age')
+define_function.adjust_and_save_plot(adata, folder_path, f'umap_{folder_name}_age,', 'umap', min_value_umap_1,
+                                     max_value_umap_1, min_value_umap_2, max_value_umap_2, 'UMAP1', 'UMAP2', 'tissue')
+
 print(3)
 mean_expression = adata.X.mean(axis=0)  # mean expression of each gene
 fig = pl.figure(figsize=(3, 3))
@@ -60,8 +90,60 @@ fig.savefig(f'{folder_path}/facs_male_mean_expression.png')
 
 adata = define_function.sort_adata_by_attribute(adata, 'tissue')  # sort by tissue
 age_dict = define_function.split_adata_by_attribute(adata, 'age')  # split by age
+time_points = list(age_dict.keys())  # get the time points
 
-os.chdir(folder_path)  # Change the current directory to the desired folder
+# create the folder to save the images
+folder_path_dict = {}  # store the folder path
+for time_point in time_points:
+    folder_path_dict[time_point] = f'{folder_path}/{time_point}'
+    if not os.path.exists(folder_path_dict[time_point]):
+        os.makedirs(folder_path_dict[time_point])
+
+# plot the pca and umap  for each time point
+for time_point in time_points:
+    adata_time_point = age_dict[time_point]
+    define_function.adjust_and_save_plot(adata_time_point, folder_path_dict[time_point],
+                                         f'pca_{folder_name}_age_{time_point},', 'pca', min_value_pca_1,
+                                         max_value_pca_1, min_value_pca_2, max_value_pca_2, 'PC1', 'PC2', 'tissue')
+
+cnsecutive_time_points = []  # Consecutive time points
+for i in range(len(time_points) - 1):
+    cnsecutive_time_points.append([time_points[i], time_points[i + 1]])
+
+for cnsecutive_time_point in cnsecutive_time_points:
+    folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[
+        1]] = f'{folder_path}/{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}'
+    if not os.path.exists(folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]]):
+        os.makedirs(folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]])
+
+# plot the pca and umap
+adata_analyzed_dict = {}  # store the analyzed data
+for cnsecutive_time_point in cnsecutive_time_points:
+    integrate_adata = ad.concat(
+        [age_dict[cnsecutive_time_point[0]], age_dict[cnsecutive_time_point[1]]])  # select consecutive time points
+    adata_analyzed_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]] = integrate_adata
+
+    # pca
+    define_function.plot_pca(integrate_adata,
+                             folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]],
+                             f'pca_{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}_age', 'pca', min_value_pca_1,
+                             max_value_pca_1, min_value_pca_2, max_value_pca_2, 'PC1', 'PC2', 'age')
+    define_function.plot_pca(integrate_adata,
+                             folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]],
+                             f'pca_{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}_age', 'pca', min_value_pca_1,
+                             max_value_pca_1, min_value_pca_2, max_value_pca_2, 'PC1', 'PC2', 'age')
+
+    # umap
+    define_function.plot_umap(integrate_adata,
+                              folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]],
+                              f'umap_{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}_age', 'umap',
+                              min_value_umap_1, max_value_umap_1, min_value_umap_2, max_value_umap_2, 'UMAP1', 'UMAP2',
+                              'age')
+    define_function.plot_umap(integrate_adata,
+                              folder_path_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]],
+                              f'umap_{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}_age', 'umap',
+                              min_value_umap_1, max_value_umap_1, min_value_umap_2, max_value_umap_2, 'UMAP1', 'UMAP2',
+                              'tissue')
 
 adata_3_18 = ad.concat([age_dict['3m'], age_dict['18m']])  # select 3m and 18m
 sc.tl.pca(adata_3_18, n_comps=20)  # PCA
@@ -111,208 +193,209 @@ for tissue in list(tissue_dict['3m'].keys()):
 '''
 for tissue in list(tissue_dict['3m'].keys()):
     integrate_adata = ad.concat([tissue_dict['3m'][tissue], tissue_dict['18m'][tissue], tissue_dict['24m'][tissue]])
-    integrate_adata_3m_18m = ad.concat([tissue_dict['3m'][tissue], tissue_dict['18m'][tissue]])
-    integrate_adata_18m_24m = ad.concat([tissue_dict['18m'][tissue], tissue_dict['24m'][tissue]])
+integrate_adata_3m_18m = ad.concat([tissue_dict['3m'][tissue], tissue_dict['18m'][tissue]])
+integrate_adata_18m_24m = ad.concat([tissue_dict['18m'][tissue], tissue_dict['24m'][tissue]])
 
-    # PCA
-    # integrate_adata
-    first_component_pca = integrate_adata.obsm['X_pca'][:, 0]
-    second_component_pca = integrate_adata.obsm['X_pca'][:, 1]
+# PCA
+# integrate_adata
+first_component_pca = integrate_adata.obsm['X_pca'][:, 0]
+second_component_pca = integrate_adata.obsm['X_pca'][:, 1]
 
-    max_value_pca_1 = first_component_pca.max()
-    min_value_pca_1 = first_component_pca.min()
-    max_value_pca_2 = second_component_pca.max()
-    min_value_pca_2 = second_component_pca.min()
+max_value_pca_1 = first_component_pca.max()
+min_value_pca_1 = first_component_pca.min()
+max_value_pca_2 = second_component_pca.max()
+min_value_pca_2 = second_component_pca.min()
 
-    fig = sc.pl.pca(integrate_adata, color='age', return_fig=True)
+fig = sc.pl.pca(integrate_adata, color='age', return_fig=True)
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1 - (max_value_pca_1 - min_value_pca_1) * 0.05,
-                max_value_pca_1 + (max_value_pca_1 - min_value_pca_1) * 0.05)  # adjust the x axis
-    ax.set_ylim(min_value_pca_2 - (max_value_pca_2 - min_value_pca_2) * 0.05,
-                max_value_pca_2 + (max_value_pca_2 - min_value_pca_2) * 0.05)  # adjust the y axis
-    ax.set_title(f'pca_facs_male_{tissue}_age.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1 - (max_value_pca_1 - min_value_pca_1) * 0.05,
+            max_value_pca_1 + (max_value_pca_1 - min_value_pca_1) * 0.05)  # adjust the x axis
+ax.set_ylim(min_value_pca_2 - (max_value_pca_2 - min_value_pca_2) * 0.05,
+            max_value_pca_2 + (max_value_pca_2 - min_value_pca_2) * 0.05)  # adjust the y axis
+ax.set_title(f'pca_facs_male_{tissue}_age.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_age.png')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_age.png')
 
-    fig = sc.pl.pca(integrate_adata, color='cell_ontology_class', return_fig=True)
+fig = sc.pl.pca(integrate_adata, color='cell_ontology_class', return_fig=True)
 
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1 - (max_value_pca_1 - min_value_pca_1) * 0.05,
+            max_value_pca_1 + (max_value_pca_1 - min_value_pca_1) * 0.05)  # adjust the x axis
+ax.set_ylim(min_value_pca_2 - (max_value_pca_2 - min_value_pca_2) * 0.05,
+            max_value_pca_2 + (max_value_pca_2 - min_value_pca_2) * 0.05)  # adjust the y axis
+ax.set_title(f'pca_facs_male_{tissue}_cell_ontology_class.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1 - (max_value_pca_1 - min_value_pca_1) * 0.05,
-                max_value_pca_1 + (max_value_pca_1 - min_value_pca_1) * 0.05)  # adjust the x axis
-    ax.set_ylim(min_value_pca_2 - (max_value_pca_2 - min_value_pca_2) * 0.05,
-                max_value_pca_2 + (max_value_pca_2 - min_value_pca_2) * 0.05)  # adjust the y axis
-    ax.set_title(f'pca_facs_male_{tissue}_cell_ontology_class.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_cell_ontology_class.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_cell_ontology_class.png')
+# integrate_adata_3m_18m
+fig = sc.pl.pca(integrate_adata_3m_18m, color='age', return_fig=True)
 
-    # integrate_adata_3m_18m
-    fig = sc.pl.pca(integrate_adata_3m_18m, color='age', return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_3m_18m_age.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_3m_18m_age.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_3m_18m_age.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_3m_18m_age.png')
+fig = sc.pl.pca(integrate_adata_3m_18m, color='cell_ontology_class', return_fig=True)
 
-    fig = sc.pl.pca(integrate_adata_3m_18m, color='cell_ontology_class', return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_3m_18m_cell_ontology_class.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_3m_18m_cell_ontology_class.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_3m_18m_cell_ontology_class.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_3m_18m_cell_ontology_class.png')
+# integrate_adata_18m_24m
+fig = sc.pl.pca(integrate_adata_18m_24m, color='age', return_fig=True)
 
-    # integrate_adata_18m_24m
-    fig = sc.pl.pca(integrate_adata_18m_24m, color='age', return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_18m_24m_age.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_18m_24m_age.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_18m_24m_age.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_18m_24m_age.png')
+# tissue_dict['3m'][tissue]
+fig = sc.pl.pca(tissue_dict['3m'][tissue], return_fig=True)
 
-    # tissue_dict['3m'][tissue]
-    fig = sc.pl.pca(tissue_dict['3m'][tissue], return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_3m.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_3m.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_3m.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_3m.png')
+fig = sc.pl.pca(tissue_dict['3m'][tissue], color='cell_ontology_class', return_fig=True)
 
-    fig = sc.pl.pca(tissue_dict['3m'][tissue],color='cell_ontology_class', return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_3m_cell_ontology_class.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_3m_cell_ontology_class.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_3m_cell_ontology_class.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_3m_cell_ontology_class.png')
+# tissue_dict['18m'][tissue]
+fig = sc.pl.pca(tissue_dict['18m'][tissue], return_fig=True)
 
-    # tissue_dict['18m'][tissue]
-    fig = sc.pl.pca(tissue_dict['18m'][tissue], return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_18m.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_18m.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_18m.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_18m.png')
+fig = sc.pl.pca(tissue_dict['18m'][tissue], color='cell_ontology_class'
+return_fig = True)
 
-    fig = sc.pl.pca(tissue_dict['18m'][tissue],color = 'cell_ontology_class' return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_18m_cell_ontology_class.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_18m_cell_ontology_class.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_18m_cell_ontology_class.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_18m_cell_ontology_class.png')
+# tissue_dict['24m'][tissue]
+fig = sc.pl.pca(tissue_dict['24m'][tissue], return_fig=True)
 
-    # tissue_dict['24m'][tissue]
-    fig = sc.pl.pca(tissue_dict['24m'][tissue], return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_24m.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_24m.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_24m.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_24m.png')
+fig = sc.pl.pca(tissue_dict['24m'][tissue], color='cell_ontology_class'
+return_fig = True)
 
-    fig = sc.pl.pca(tissue_dict['24m'][tissue],color = 'cell_ontology_class' return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_pca_1, max_value_pca_1)
+ax.set_ylim(min_value_pca_2, max_value_pca_2)
+ax.set_title(f'pca_facs_male_{tissue}_24m_cell_ontology_class.png')
+ax.set_xlabel('PC1')
+ax.set_ylabel('PC2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_pca_1, max_value_pca_1)
-    ax.set_ylim(min_value_pca_2, max_value_pca_2)
-    ax.set_title(f'pca_facs_male_{tissue}_24m_cell_ontology_class.png')
-    ax.set_xlabel('PC1')
-    ax.set_ylabel('PC2')
+# save the plot
+pl.savefig(f'pca_facs_male_{tissue}_24m_cell_ontology_class.png')
 
-    # save the plot
-    pl.savefig(f'pca_facs_male_{tissue}_24m_cell_ontology_class.png')
+# umap
+# integrate_adata
+first_component_umap = integrate_adata.obsm['X_umap'][:, 0]
+second_component_umap = integrate_adata.obsm['X_umap'][:, 1]
 
-    # umap
-    # integrate_adata
-    first_component_umap = integrate_adata.obsm['X_umap'][:, 0]
-    second_component_umap = integrate_adata.obsm['X_umap'][:, 1]
+max_value_umap_1 = first_component_umap.max()
+min_value_umap_1 = first_component_umap.min()
+max_value_umap_2 = second_component_umap.max()
+min_value_umap_2 = second_component_umap.min()
 
-    max_value_umap_1 = first_component_umap.max()
-    min_value_umap_1 = first_component_umap.min()
-    max_value_umap_2 = second_component_umap.max()
-    min_value_umap_2 = second_component_umap.min()
+fig = sc.pl.umap(integrate_adata, color=['age', 'cell_ontology_class'], return_fig=True)
 
-    fig = sc.pl.umap(integrate_adata, color=['age', 'cell_ontology_class'], return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_umap_1, max_value_umap_1)
+ax.set_ylim(min_value_umap_2, max_value_umap_2)
+ax.set_title(f'umap_facs_male_{tissue}.png')
+ax.set_xlabel('UMAP1')
+ax.set_ylabel('UMAP2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_umap_1, max_value_umap_1)
-    ax.set_ylim(min_value_umap_2, max_value_umap_2)
-    ax.set_title(f'umap_facs_male_{tissue}.png')
-    ax.set_xlabel('UMAP1')
-    ax.set_ylabel('UMAP2')
+# save the plot
+pl.savefig(f'umap_facs_male_{tissue}.png')
 
-    # save the plot
-    pl.savefig(f'umap_facs_male_{tissue}.png')
+# integrate_adata_3m_18m
+fig = sc.pl.umap(integrate_adata_3m_18m, color=['age', 'cell_ontology_class'], return_fig=True)
 
-    # integrate_adata_3m_18m
-    fig = sc.pl.umap(integrate_adata_3m_18m, color=['age', 'cell_ontology_class'], return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_umap_1, max_value_umap_1)
+ax.set_ylim(min_value_umap_2, max_value_umap_2)
+ax.set_title(f'umap_facs_male_{tissue}_3m_18m.png')
+ax.set_xlabel('UMAP1')
+ax.set_ylabel('UMAP2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_umap_1, max_value_umap_1)
-    ax.set_ylim(min_value_umap_2, max_value_umap_2)
-    ax.set_title(f'umap_facs_male_{tissue}_3m_18m.png')
-    ax.set_xlabel('UMAP1')
-    ax.set_ylabel('UMAP2')
+# save the plot
+pl.savefig(f'umap_facs_male_{tissue}_3m_18m.png')
 
-    # save the plot
-    pl.savefig(f'umap_facs_male_{tissue}_3m_18m.png')
+# integrate_adata_18m_24m
+fig = sc.pl.umap(integrate_adata_18m_24m, color=['age', 'cell_ontology_class'], return_fig=True)
 
-    # integrate_adata_18m_24m
-    fig = sc.pl.umap(integrate_adata_18m_24m, color=['age', 'cell_ontology_class'], return_fig=True)
+ax = fig.gca()
+ax.set_xlim(min_value_umap_1, max_value_umap_1)
+ax.set_ylim(min_value_umap_2, max_value_umap_2)
+ax.set_title(f'umap_facs_male_{tissue}_18m_24m.png')
+ax.set_xlabel('UMAP1')
+ax.set_ylabel('UMAP2')
 
-    ax = fig.gca()
-    ax.set_xlim(min_value_umap_1, max_value_umap_1)
-    ax.set_ylim(min_value_umap_2, max_value_umap_2)
-    ax.set_title(f'umap_facs_male_{tissue}_18m_24m.png')
-    ax.set_xlabel('UMAP1')
-    ax.set_ylabel('UMAP2')
-
-    # save the plot
-    pl.savefig(f'umap_facs_male_{tissue}_18m_24m.png')
+# save the plot
+pl.savefig(f'umap_facs_male_{tissue}_18m_24m.png')
 
 tissue_3_18_dict, ontology_3_18_dict, ontology_3_18_list, ontology_3_18_list_dict = define_function.process_adata_by_age(
     age_dict, ['3m', '18m'])
@@ -328,38 +411,39 @@ tissue_18_24_dict, ontology_18_24_dict, ontology_18_24_list, ontology_18_24_list
 
 # save the PCA and umap plot for each cell ontology
 for tissue in list(ontology_3_18_list_dict.keys()):
-    for ontology in ontology_3_18_list_dict[tissue]:
-        integrate_adata = ad.concat(
-            [ontology_3_18_dict['3m'][tissue][ontology], ontology_3_18_dict['18m'][tissue][ontology]])
+    for
+ontology in ontology_3_18_list_dict[tissue]:
+integrate_adata = ad.concat(
+    [ontology_3_18_dict['3m'][tissue][ontology], ontology_3_18_dict['18m'][tissue][ontology]])
 
-        # PCA
-        # sc.tl.pca(integrate_adata, n_comps=20)
-        sc.pl.pca(integrate_adata, components='1,2', color='age', save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
-                  title='facs_male_3m_18m_' + tissue + '_' + ontology)
+# PCA
+# sc.tl.pca(integrate_adata, n_comps=20)
+sc.pl.pca(integrate_adata, components='1,2', color='age', save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
+          title='facs_male_3m_18m_' + tissue + '_' + ontology)
 
-        # umap
-        # sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
-        # sc.tl.umap(integrate_adata)
-        sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
-                   title='facs_male_3m_18m_' + tissue + '_' + ontology)
+# umap
+# sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+# sc.tl.umap(integrate_adata)
+sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_3m_18m_{tissue}_{ontology}.png',
+           title='facs_male_3m_18m_' + tissue + '_' + ontology)
 
 for tissue in list(ontology_18_24_list_dict.keys()):
-    for ontology in ontology_18_24_list_dict[tissue]:
-        integrate_adata = ad.concat(
-            [ontology_18_24_dict['18m'][tissue][ontology], ontology_18_24_dict['24m'][tissue][ontology]])
+    for
+ontology in ontology_18_24_list_dict[tissue]:
+integrate_adata = ad.concat(
+    [ontology_18_24_dict['18m'][tissue][ontology], ontology_18_24_dict['24m'][tissue][ontology]])
 
-        # PCA
-        # sc.tl.pca(integrate_adata, n_comps=20)
-        sc.pl.pca(integrate_adata, components='1,2', color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
-                  title='facs_male_18m_24m_' + tissue + '_' + ontology)
+# PCA
+# sc.tl.pca(integrate_adata, n_comps=20)
+sc.pl.pca(integrate_adata, components='1,2', color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
+          title='facs_male_18m_24m_' + tissue + '_' + ontology)
 
-        # umap
-        # sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
-        # sc.tl.umap(integrate_adata)
-        sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
-                   title='facs_male_18m_24m_' + tissue + '_' + ontology)
+# umap
+# sc.pp.neighbors(integrate_adata, n_neighbors=10, n_pcs=20)
+# sc.tl.umap(integrate_adata)
+sc.pl.umap(integrate_adata, color='age', save=f'_facs_male_18m_24m_{tissue}_{ontology}.png',
+           title='facs_male_18m_24m_' + tissue + '_' + ontology)
 
-os.chdir(original_dir)  # Change the current directory back to the original folder
 '''
 tissue_3_18_dict = {}
 for age in ['3m', '18m']:
@@ -466,22 +550,22 @@ print(ontology_18_24_list)
 # save the ontology list dict as csv
 with open('data/facs/ontology_facs_male_3m_18m_list_dict.csv', 'w') as csvfile:
     writer = csv.writer(csvfile)
-    for key, value in ontology_3_18_list_dict.items():
-        writer.writerow([key, value])
+for key, value in ontology_3_18_list_dict.items():
+    writer.writerow([key, value])
 
 with open('data/facs/ontology_facs_male_18m_24m_list_dict.csv', 'w') as csvfile:
     writer = csv.writer(csvfile)
-    for key, value in ontology_18_24_list_dict.items():
-        writer.writerow([key, value])
+for key, value in ontology_18_24_list_dict.items():
+    writer.writerow([key, value])
 
 # load the ontology list dict as csv
 with open('data/facs/ontology_facs_male_3m_18m_list_dict.csv', 'r') as csvfile:
     reader = csv.reader(csvfile)
-    ontology_3_18_list_dict = dict(reader)
+ontology_3_18_list_dict = dict(reader)
 
 with open('data/facs/ontology_facs_male_18m_24m_list_dict.csv', 'r') as csvfile:
     reader = csv.reader(csvfile)
-    ontology_18_24_list_dict = dict(reader)
+ontology_18_24_list_dict = dict(reader)
 
 print(ontology_3_18_list_dict)
 print(ontology_18_24_list_dict)

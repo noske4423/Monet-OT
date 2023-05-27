@@ -86,11 +86,12 @@ def process_adata_by_age(age_dict, ages):
     return tissue_dict, ontology_dict_new, ontology_list, ontology_list_dict
 
 
-def adjust_and_save_plot(adata, title, method, min_value_1, max_value_1, min_value_2, max_value_2, xlabel, ylabel, color):
+def adjust_and_save_plot(adata, folder_path,title, method, min_value_1, max_value_1, min_value_2, max_value_2, xlabel, ylabel, color):
     """Adjusts and saves a plot.
 
     Args:
         adata (AnnData): The input AnnData object.
+        folder_path (str): The path to the folder where the plot will be saved.
         title (str): The title of the plot.
         method (str): The method used to generate the plot.
         xlabel (str): The label of the x-axis.
@@ -98,6 +99,7 @@ def adjust_and_save_plot(adata, title, method, min_value_1, max_value_1, min_val
         color (str): The color of the plot.
     """
     if method == 'pca':
+        # sc.set_figure_params(figsize=[12, 6])
         fig = sc.pl.pca(adata, color=color, return_fig=True)
         ax = fig.gca()
         ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
@@ -107,7 +109,9 @@ def adjust_and_save_plot(adata, title, method, min_value_1, max_value_1, min_val
         ax.set_title(title)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        pl.savefig(title + '.png')
+        legend = ax.get_legend()
+
+        pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
 
     elif method == 'umap':
         fig = sc.pl.umap(adata, color=color, return_fig=True)
@@ -119,7 +123,9 @@ def adjust_and_save_plot(adata, title, method, min_value_1, max_value_1, min_val
         ax.set_title(title)
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
-        pl.savefig(title + '.png')
+        legend = ax.get_legend()
+
+        pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
 
 
 def extract_edges_above_threshold(g, thr):

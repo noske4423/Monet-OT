@@ -5,6 +5,7 @@ import random
 import ot
 import matplotlib.pylab as pl
 
+
 def sort_adata_by_attribute(adata, attribute):
     """Sorts an AnnData object by the specified attribute.
 
@@ -85,8 +86,35 @@ def process_adata_by_age(age_dict, ages):
 
     return tissue_dict, ontology_dict_new, ontology_list, ontology_list_dict
 
+def plot_highest_expr_genes(adata, folder_path, title, n_genes=10):
+    """Plots the highest expressed genes in the AnnData object.
 
-def adjust_and_save_plot(adata, folder_path,title, method, min_value_1, max_value_1, min_value_2, max_value_2, xlabel, ylabel, color):
+    Args:
+        adata (AnnData): The input AnnData object.
+        folder_path (str): The path to the folder where the plot will be saved.
+        title (str): The title of the plot.
+        n_genes (int): The number of genes to plot.
+    """
+    ax=sc.pl.highest_expr_genes(adata, n_top=n_genes, show=False)
+    ax.set_title(f'highest_expr_genes_{title}')
+    pl.savefig(f'{folder_path}/highest_expr_genes_{title}.png')
+
+def plot_mean_expression(adata, folder_path, title):
+    """Plots the mean expression of each gene in the AnnData object.
+
+    Args:
+        adata (AnnData): The input AnnData object.
+    """
+    mean_expression = adata.X.mean(axis=0)  # mean expression of each gene
+    fig = pl.figure(figsize=(5, 5))
+    pl.plot(mean_expression.tolist()[0])
+    pl.xlabel('genes')
+    pl.ylabel('mean_expression')
+    pl.title(f'mean_expression_{title}')
+    fig.savefig(f'{folder_path}/mean_expression_{title}.png')
+
+def adjust_and_save_plot(adata, folder_path, title, method, min_value_1, max_value_1, min_value_2, max_value_2, xlabel,
+                         ylabel, color, color_name='blue'):
     """Adjusts and saves a plot.
 
     Args:
@@ -98,22 +126,26 @@ def adjust_and_save_plot(adata, folder_path,title, method, min_value_1, max_valu
         ylabel (str): The label of the y-axis.
         color (str): The color of the plot.
     """
-
     if method == 'pca':
         if color == None:
-            fig = sc.pl.pca(adata, color=color, return_fig=True)
-            ax = fig.gca()
-            ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
-                        max_value_1 + (max_value_1 - min_value_1) * 0.05)
-            ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
-                        max_value_2 + (max_value_2 - min_value_2) * 0.05)
-            ax.set_title(title)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
+            title = f'{method}_{title}'
+            pl.figure()
+            pl.scatter(adata.obsm['X_pca'][:,0], adata.obsm['X_pca'][:,1], c=color_name)
+            pl.xlim([min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                        max_value_1 + (max_value_1 - min_value_1) * 0.05])
+            pl.ylim([min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                        max_value_2 + (max_value_2 - min_value_2) * 0.05])
+            pl.title(title)
+            pl.xlabel(xlabel)
+            pl.ylabel(ylabel)
+            pl.xticks([]) # remove xticks
+            pl.yticks([]) # remove yticks
 
             pl.savefig(f'{folder_path}/{title}.png')
+            pl.close()
 
         else:
+            title = f'{method}_{title}_{color}'
             # sc.set_figure_params(figsize=[12, 6])
             fig = sc.pl.pca(adata, color=color, return_fig=True)
             ax = fig.gca()
@@ -130,19 +162,24 @@ def adjust_and_save_plot(adata, folder_path,title, method, min_value_1, max_valu
 
     elif method == 'umap':
         if color == None:
-            fig = sc.pl.umap(adata, color=color, return_fig=True)
-            ax = fig.gca()
-            ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
-                        max_value_1 + (max_value_1 - min_value_1) * 0.05)
-            ax.set_ylim(min_value_2 - (max_value_2 - min_value_2) * 0.05,
-                        max_value_2 + (max_value_2 - min_value_2) * 0.05)
-            ax.set_title(title)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel(ylabel)
+            title = f'{method}_{title}'
+            pl.figure()
+            pl.scatter(adata.obsm['X_umap'][:,0], adata.obsm['X_umap'][:,1], c=color_name)
+            pl.xlim([min_value_1 - (max_value_1 - min_value_1) * 0.05,
+                        max_value_1 + (max_value_1 - min_value_1) * 0.05])
+            pl.ylim([min_value_2 - (max_value_2 - min_value_2) * 0.05,
+                        max_value_2 + (max_value_2 - min_value_2) * 0.05])
+            pl.title(title)
+            pl.xlabel(xlabel)
+            pl.ylabel(ylabel)
+            pl.xticks([]) # remove xticks
+            pl.yticks([]) # remove yticks
 
             pl.savefig(f'{folder_path}/{title}.png')
+            pl.close()
 
         else:
+            title = f'{method}_{title}_{color}'
             fig = sc.pl.umap(adata, color=color, return_fig=True)
             ax = fig.gca()
             ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,

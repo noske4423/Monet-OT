@@ -86,6 +86,7 @@ def process_adata_by_age(age_dict, ages):
 
     return tissue_dict, ontology_dict_new, ontology_list, ontology_list_dict
 
+
 def plot_highest_expr_genes(adata, folder_path, title, n_genes=10):
     """Plots the highest expressed genes in the AnnData object.
 
@@ -95,9 +96,10 @@ def plot_highest_expr_genes(adata, folder_path, title, n_genes=10):
         title (str): The title of the plot.
         n_genes (int): The number of genes to plot.
     """
-    ax=sc.pl.highest_expr_genes(adata, n_top=n_genes, show=False)
+    ax = sc.pl.highest_expr_genes(adata, n_top=n_genes, show=False)
     ax.set_title(f'highest_expr_genes_{title}')
     pl.savefig(f'{folder_path}/highest_expr_genes_{title}.png')
+
 
 def plot_mean_expression(adata, folder_path, title):
     """Plots the mean expression of each gene in the AnnData object.
@@ -112,6 +114,7 @@ def plot_mean_expression(adata, folder_path, title):
     pl.ylabel('mean_expression')
     pl.title(f'mean_expression_{title}')
     fig.savefig(f'{folder_path}/mean_expression_{title}.png')
+
 
 def adjust_and_save_plot(adata, folder_path, title, method, min_value_1, max_value_1, min_value_2, max_value_2, xlabel,
                          ylabel, color, color_name='blue'):
@@ -130,16 +133,16 @@ def adjust_and_save_plot(adata, folder_path, title, method, min_value_1, max_val
         if color == None:
             title = f'{method}_{title}'
             pl.figure()
-            pl.scatter(adata.obsm['X_pca'][:,0], adata.obsm['X_pca'][:,1], c=color_name)
+            pl.scatter(adata.obsm['X_pca'][:, 0], adata.obsm['X_pca'][:, 1], c=color_name)
             pl.xlim([min_value_1 - (max_value_1 - min_value_1) * 0.05,
-                        max_value_1 + (max_value_1 - min_value_1) * 0.05])
+                     max_value_1 + (max_value_1 - min_value_1) * 0.05])
             pl.ylim([min_value_2 - (max_value_2 - min_value_2) * 0.05,
-                        max_value_2 + (max_value_2 - min_value_2) * 0.05])
+                     max_value_2 + (max_value_2 - min_value_2) * 0.05])
             pl.title(title)
             pl.xlabel(xlabel)
             pl.ylabel(ylabel)
-            pl.xticks([]) # remove xticks
-            pl.yticks([]) # remove yticks
+            pl.xticks([])  # remove xticks
+            pl.yticks([])  # remove yticks
 
             pl.savefig(f'{folder_path}/{title}.png')
             pl.close()
@@ -164,16 +167,16 @@ def adjust_and_save_plot(adata, folder_path, title, method, min_value_1, max_val
         if color == None:
             title = f'{method}_{title}'
             pl.figure()
-            pl.scatter(adata.obsm['X_umap'][:,0], adata.obsm['X_umap'][:,1], c=color_name)
+            pl.scatter(adata.obsm['X_umap'][:, 0], adata.obsm['X_umap'][:, 1], c=color_name)
             pl.xlim([min_value_1 - (max_value_1 - min_value_1) * 0.05,
-                        max_value_1 + (max_value_1 - min_value_1) * 0.05])
+                     max_value_1 + (max_value_1 - min_value_1) * 0.05])
             pl.ylim([min_value_2 - (max_value_2 - min_value_2) * 0.05,
-                        max_value_2 + (max_value_2 - min_value_2) * 0.05])
+                     max_value_2 + (max_value_2 - min_value_2) * 0.05])
             pl.title(title)
             pl.xlabel(xlabel)
             pl.ylabel(ylabel)
-            pl.xticks([]) # remove xticks
-            pl.yticks([]) # remove yticks
+            pl.xticks([])  # remove xticks
+            pl.yticks([])  # remove yticks
 
             pl.savefig(f'{folder_path}/{title}.png')
             pl.close()
@@ -332,7 +335,111 @@ def reconstruct_adata(adata_list):
     return adata_list_new
 
 
-def wproj(adata_list, m, n):
+def process_pca(adata1, adata1_next, adata2, folder_name, title):
+    integrate_adata = ad.concat([adata1, adata1_next, adata2])
+    sc.pp.highly_variable_genes(integrate_adata)
+    integrate_adata = integrate_adata[:, integrate_adata.var.highly_variable]  # filter highly variable genes
+    sc.tl.pca(integrate_adata, n_comps=50)  # run PCA
+    fig = sc.pl.pca_overview(integrate_adata, color=['age', 'cell_ontology_class'], return_fig=True)
+    fig.savefig(f'pca_overview_{folder_name}_{title}.png')
+    cumulative_explained_variance_ratio = integrate_adata.uns['pca']['variance_ratio'].sum()
+    adata1.obsm['X_pca'] = integrate_adata[adata1.obs.index].obsm['X_pca']
+    adata1_next.obsm['X_pca'] = integrate_adata[adata1_next.obs.index].obsm['X_pca']
+    adata2.obsm['X_pca'] = integrate_adata[adata2.obs.index].obsm['X_pca']
+
+    return adata1, adata1_next, adata2, cumulative_explained_variance_ratio
+
+def wproj_adata(adata1, adata1_next, adata2, folder_name, title):
+    t_list=[1.0]
+    D_list=[]
+    x1 = np.array(adata1.obsm['X_pca'])
+    x1_next = np.array(adata1_next.obsm['X_pca'])
+    x2 = np.array(adata2.obsm['X_pca'])
+
+    x1 = x1 - np.mean(x1, axis=0)
+    x1_next = x1_next - np.mean(x1_next, axis=0)
+    x2 = x2 - np.mean(x2, axis=0)
+
+    w1 = np.ones((x1.shape[0],)) / x1.shape[0]
+    w1_next = np.ones((x1_next.shape[0],)) / x1_next.shape[0]
+    w2 = np.ones((x2.shape[0],)) / x2.shape[0]
+
+    m = 0
+    M = ot.dist(x1, x1_next1, p=2)  # Euclidean distance matrix
+    M = M / M.sum()
+    G = ot.emd(w1, w1_next, np.array(M))
+    L = ot.emd2(w1, w1, np.array(M))
+
+    n = 1
+    edge_list = extract_edges_above_threshold(G, 1 / x1.shape[0] / x1_next.shape[0] / 2) # extract edges above threshold
+
+    M = ot.dist(x1, x2, p=2)
+    M = M / M.sum()
+    D_init = ot.emd2(w1, w2, np.array(M), numItermax=1000000) * M.sum() * M.sum()
+    D = D_init
+    D_list.append(D)
+
+    while m < 19:
+        t = (m + 1) / 20
+        x_new, w_new = interpolate_edges(x1, x1_next, edge_list, t)
+
+        M = ot.dist(x_new, x2, p=2)
+        M = M / M.sum()
+        D_new = ot.emd2(w_new, w2, M, numItermax=1000000) * M.sum() * M.sum()
+        t_list.append(t)
+        D_list.append(D_new)
+
+        if D_new > D:
+            break
+
+        x = x_new
+        w = w_new
+        D = D_new
+        m += 1
+
+    x = x_new
+    w = w_new
+    D = D_new
+    while t > -2:
+        t = (m + 1) / 20 - n / 100
+        if t <= 0:
+            t = 0
+            L_new = L * t * abs(t)
+            p1 = L_new / D_init
+            p2 = L_new / (abs(L_new) + D)
+            break
+
+        x_new, w_new = interpolate_edges(x1, x1_next, edge_list, t)
+
+        M = ot.dist(x_new, x2, p=2)
+        M = M / M.sum()
+        D_new = ot.emd2(w_new, w2, M, numItermax=1000000) * M.sum() * M.sum()
+        t_list.append(t)
+        D_list.append(D_new)
+
+        if D_new > D:
+            t = round((m + 1) / 20 - (n - 1) / 100, 2)
+            L_new = L * t * abs(t)
+            p1 = L_new / D_init
+            p2 = L_new / (abs(L_new) + D)
+            break
+
+        x = x_new
+        w = w_new
+        D = D_new
+        n += 1
+
+    lambda_ = t
+    fig = pl.figure()
+    pl.plot(t_list, D_list)
+    pl.xlabel('lambda')
+    pl.ylabel('D')
+    pl.savefig(f'{folder_name}/lambda_D_{folder_name}_{title}.png')
+
+    return lambda_,p1,p2
+
+
+def wproj_adata_list(adata_list, m, n):
     """Computes projection weights and distances for each pair of samples.
 
     Args:

@@ -278,7 +278,8 @@ for time_point in time_points:
 adata_cell_ontology_class_tissue_age_analyzed_dict = {}  # adata for each cell ontology class
 for cnsecutive_time_point in cnsecutive_time_points:
     adata_cell_ontology_class_tissue_age_analyzed_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]] = {}
-    for tissue in list(adata_tissue_age_analyzed_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]].keys()):
+    for tissue in list(
+            adata_tissue_age_analyzed_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]].keys()):
         adata_cell_ontology_class_tissue_age_analyzed_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]][
             tissue] = {}
         for cell_ontology_class in list(
@@ -286,9 +287,9 @@ for cnsecutive_time_point in cnsecutive_time_points:
             if cell_ontology_class in list(
                     adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point[1]][tissue].keys()):
                 if adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point[0]][tissue][
-                            cell_ontology_class].shape[
-                            0] > 20 and adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point[1]][tissue][
-                            cell_ontology_class].shape[0] > 20:
+                    cell_ontology_class].shape[
+                    0] > 20 and adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point[1]][tissue][
+                    cell_ontology_class].shape[0] > 20:
                     adata_cell_ontology_class_tissue_age_analyzed_dict[
                         cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]][tissue][
                         cell_ontology_class] = ad.concat(
@@ -442,5 +443,12 @@ for cnsecutive_time_point in cnsecutive_time_points:
                 cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]][tissue].keys())
 
 # save cell_ontology_class_tissue_age_analyzed_dict as csv
-cell_ontology_class_tissue_age_analyzed_dict_df = pd.DataFrame.from_dict(cell_ontology_class_tissue_age_analyzed_dict, orient='index')
-cell_ontology_class_tissue_age_analyzed_dict_df.to_csv(f'data/{folder_name}/{folder_name}_cell_ontology_class_tissue_age_analyzed.csv')
+cell_ontology_class_tissue_age_analyzed_dict_df_dict = {}
+for cnsecutive_time_point in cnsecutive_time_points:
+    cell_ontology_class_tissue_age_analyzed_dict_df_dict[
+        cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]] = pd.DataFrame.from_dict(
+        cell_ontology_class_tissue_age_analyzed_dict[cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]],
+        orient='index')
+    cell_ontology_class_tissue_age_analyzed_dict_df_dict[
+        cnsecutive_time_point[0] + '_' + cnsecutive_time_point[1]].to_csv(
+        f'data/{folder_name}/{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}/{folder_name}_{cnsecutive_time_point[0]}_{cnsecutive_time_point[1]}_cell_ontology_class_tissue_age_analyzed_dict.csv')

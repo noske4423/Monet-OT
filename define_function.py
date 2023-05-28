@@ -336,12 +336,25 @@ def reconstruct_adata(adata_list):
 
 
 def process_pca(adata1, adata1_next, adata2, folder_name, title):
+    tissue1 = adata1.obs['tissue'].unique()[0]
+    tissue2 = adata2.obs['tissue'].unique()[0]
+    cell_ontology_class1 = adata1.obs['cell_ontology_class'].unique()[0]
+    cell_ontology_class2 = adata2.obs['cell_ontology_class'].unique()[0]
+    adata1.obs['group']= f'{tissue1}_{cell_ontology_class1}_yong'
+    adata1_next.obs['group']= f'{tissue1}_{cell_ontology_class1}_old'
+    adata2.obs['group']= f'{tissue2}_{cell_ontology_class2}_yong'
     integrate_adata = ad.concat([adata1, adata1_next, adata2])
     sc.pp.highly_variable_genes(integrate_adata)
     integrate_adata = integrate_adata[:, integrate_adata.var.highly_variable]  # filter highly variable genes
     sc.tl.pca(integrate_adata, n_comps=50)  # run PCA
-    fig = sc.pl.pca_overview(integrate_adata, color=['age', 'cell_ontology_class'], return_fig=True)
-    fig.savefig(f'pca_overview_{folder_name}_{title}.png')
+    fig = sc.pl.pca(integrate_adata, color='group', return_fig=True)
+    legend = fig.get_axes()[0].get_legend()
+    pl.title(title)
+    fig.savefig(f'{folder_name}/pca_{title}.png',bbox_extra_artists=(legend,), bbox_inches='tight')
+
+    sc.settings.figdir = f'{folder_name}'
+    sc.pl.pca_variance_ratio(integrate_adata, log=True, n_pcs=50, save=f'pca_variance_ratio_{title}.png')
+    sc.pl.pca_loadings(integrate_adata, components=[1, 2, 3], save=f'pca_loadings_{title}.png')
     cumulative_explained_variance_ratio = integrate_adata.uns['pca']['variance_ratio'].sum()
     adata1.obsm['X_pca'] = integrate_adata[adata1.obs.index].obsm['X_pca']
     adata1_next.obsm['X_pca'] = integrate_adata[adata1_next.obs.index].obsm['X_pca']
@@ -365,7 +378,7 @@ def wproj_adata(adata1, adata1_next, adata2, folder_name, title):
     w2 = np.ones((x2.shape[0],)) / x2.shape[0]
 
     m = 0
-    M = ot.dist(x1, x1_next1, p=2)  # Euclidean distance matrix
+    M = ot.dist(x1, x1_next, p=2)  # Euclidean distance matrix
     M = M / M.sum()
     G = ot.emd(w1, w1_next, np.array(M))
     L = ot.emd2(w1, w1, np.array(M))

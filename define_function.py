@@ -381,18 +381,32 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
     M_1y_1o = ot.dist(x1_young, x1_old, p=2)  # Euclidean distance matrix
     M_1y_1o = M_1y_1o / M_1y_1o.sum()
     # OT_1y_1o = ot.emd(w1_young, w1_old, np.array(M_1y_1o))  # OT matrix
-    W_1y_1o = ot.emd2(w1_young, w1_old, np.array(M_1y_1o)) * M_1y_1o.sum() * M_1y_1o.sum()  # Wasserstein distance between young and old
+    W_1y_1o = ot.emd2(w1_young, w1_old,
+                      np.array(M_1y_1o)) #* M_1y_1o.sum() * M_1y_1o.sum()  # Wasserstein distance between young and old
 
     M_1y_2y = ot.dist(x1_young, x2_young, p=2)  # Euclidean distance matrix
+    print(M_1y_2y.sum())
     M_1y_2y = M_1y_2y / M_1y_2y.sum()
     OT_1y_2y = ot.emd(w1_young, w2_young, np.array(M_1y_2y))  # OT matrix
-    W_1y_2y = ot.emd2(w1_young, w2_young, np.array(M_1y_2y)) * M_1y_2y.sum() * M_1y_2y.sum()  # Wasserstein distance between adata1_young and adata2_young
+    W_1y_2y = ot.emd2(w1_young, w2_young, np.array(
+        M_1y_2y)) #* M_1y_2y.sum() * M_1y_2y.sum()  # Wasserstein distance between adata1_young and adata2_young
 
-    edge_list_1y_2y = extract_edges_above_threshold(OT_1y_2y, 1e-10)  # extract edges above threshold
+    M_2y_1o = ot.dist(x2_young, x1_old, p=2)  # Euclidean distance matrix
+    M_2y_1o = M_2y_1o / M_2y_1o.sum()
+    #OT_2y_1o = ot.emd(w2_young, w1_old, np.array(M_2y_1o))  # OT matrix
+    W_2y_1o = ot.emd2(w2_young, w1_old, np.array(
+        M_2y_1o)) #* M_2y_1o.sum() * M_2y_1o.sum()  # Wasserstein distance between adata2_young and adata1_old
+
+    edge_list_1y_2y = extract_edges_above_threshold(OT_1y_2y, 0)  # extract edges above threshold
+    print(x1_young.shape[0],x2_young.shape[0],x1_old.shape[0],len(edge_list_1y_2y))
+
+    lambda_list.append(0.0)
+    W_list.append(W_1y_1o)
+
+    lambda_list.append(1.0)
+    W_list.append(W_2y_1o)
 
     W_bc_1o = W_1y_1o
-    lambda_list.append(0.0)
-    W_list.append(W_bc_1o)
 
     m = 0
     while m < 19:
@@ -400,16 +414,17 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
         x_bc, w_bc = interpolate_edges(x1_young, x2_young, edge_list_1y_2y, lambda_)
 
         M_bc_1o = ot.dist(x_bc, x1_old, p=2)
+        print(M_bc_1o.sum())
         M_bc_1o = M_bc_1o / M_bc_1o.sum()
-        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) * M_bc_1o.sum() * M_bc_1o.sum()
+        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) #* M_bc_1o.sum() * M_bc_1o.sum()
         lambda_list.append(lambda_)
         W_list.append(W_bc_1o_new)
 
         if W_bc_1o_new > W_bc_1o:
             break
 
-        W_bc_1o = W_bc_1o_new # update W_bc_1o
-        m += 1 # increase m by 1
+        W_bc_1o = W_bc_1o_new  # update W_bc_1o
+        m += 1  # increase m by 1
 
     n = 1
     while lambda_ > -2:
@@ -425,7 +440,7 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
 
         M_bc_1o = ot.dist(x_bc, x1_old, p=2)
         M_bc_1o = M_bc_1o / M_bc_1o.sum()
-        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) * M_bc_1o.sum() * M_bc_1o.sum()
+        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) #* M_bc_1o.sum() * M_bc_1o.sum()
         lambda_list.append(lambda_)
         W_list.append(W_bc_1o_new)
 
@@ -437,12 +452,14 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
             break
 
         W_bc_1o = W_bc_1o_new
-        n += 1 # increase n by 1
+        n += 1  # increase n by 1
 
     pl.plot(lambda_list, W_list, 'x')
     pl.xlabel('lambda')
-    pl.ylabel('D')
+    pl.ylabel('W_bc_A_old')
     pl.savefig(f'{folder_name}/lambda_D_{title}.png')
+
+    print(w_bc.sum())
 
     return lambda_, p1, p2
 

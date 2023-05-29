@@ -79,7 +79,7 @@ for cnsecutive_time_point_list in cnsecutive_time_points:
 print(tissue_age_dict['3m_18m'])
 print(cell_ontology_class_tissue_age_dict['3m_18m']['Bladder'])
 
-lamnda_dict = {}
+lambda_dict = {}
 p1_dict = {}
 p2_dict = {}
 image_folder_path_pca_dict = {}
@@ -88,44 +88,60 @@ for cnsecutive_time_point_list in cnsecutive_time_points:
     cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
     time_point_yong = cnsecutive_time_point_list[0]
     time_point_old = cnsecutive_time_point_list[1]
-    lamnda_dict[cnsecutive_time_point] = {}
-    p1_dict[cnsecutive_time_point] = {}
-    p2_dict[cnsecutive_time_point] = {}
+    lambda_dict[cnsecutive_time_point] = []
+    p1_dict[cnsecutive_time_point] = []
+    p2_dict[cnsecutive_time_point] = []
     image_folder_path_pca_dict[cnsecutive_time_point] = {}
     for tissue1 in tissue_age_dict[cnsecutive_time_point]:
-        lamnda_dict[cnsecutive_time_point][tissue1] = {}
-        p1_dict[cnsecutive_time_point][tissue1] = {}
-        p2_dict[cnsecutive_time_point][tissue1] = {}
         image_folder_path_pca_dict[cnsecutive_time_point][tissue1] = {}
         for cell_ontology_class1 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1]:
             adata1_yong = \
-            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                time_point_yong]
+                adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                    time_point_yong]
             adata1_old = \
-            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                time_point_old]
-            lamnda_dict[cnsecutive_time_point][tissue1][cell_ontology_class1] = {}
-            p1_dict[cnsecutive_time_point][tissue1][cell_ontology_class1] = {}
-            p2_dict[cnsecutive_time_point][tissue1][cell_ontology_class1] = {}
+                adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                    time_point_old]
+            lambda_list = []
+            p1_list = []
+            p2_list = []
             image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1] = {}
 
             for tissue2 in tissue_age_dict[cnsecutive_time_point]:
-                lamnda_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2] = {}
-                p1_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2] = {}
-                p2_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2] = {}
                 image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2] = {}
                 for cell_ontology_class2 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2]:
                     if tissue1 != tissue2 or cell_ontology_class1 != cell_ontology_class2:
                         image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][
                             cell_ontology_class2] = f'{image_folder_path}/{cnsecutive_time_point}/{tissue1}/{cell_ontology_class1}/{tissue2}/{cell_ontology_class2}'
-                        if not os.path.exists(image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][cell_ontology_class2]):
-                            os.makedirs(image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][cell_ontology_class2])
+                        if not os.path.exists(
+                                image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                                    tissue2][cell_ontology_class2]):
+                            os.makedirs(
+                                image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                                    tissue2][cell_ontology_class2])
                         adata2_yong = \
-                        adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][cell_ontology_class2][
-                            time_point_yong]
+                            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
+                                cell_ontology_class2][
+                                time_point_yong]
                         adata2_old = \
-                        adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][cell_ontology_class2][
-                            time_point_old]
+                            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
+                                cell_ontology_class2][
+                                time_point_old]
                         adata1_yong_pca, adata1_old_pca, adata2_yong_pca, cumulative_explained_variance_ratio = define_function.process_pca(
-                            adata1_yong, adata1_old, adata2_yong,image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][cell_ontology_class2],f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
+                            adata1_yong, adata1_old, adata2_yong,
+                            image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][
+                                cell_ontology_class2],
+                            f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
                         print(cumulative_explained_variance_ratio)
+                        lambda_, p1, p2 = define_function.wproj_adata(adata1_yong_pca, adata1_old_pca, adata2_yong_pca,
+                                                                      image_folder_path_pca_dict[cnsecutive_time_point][
+                                                                          tissue1][cell_ontology_class1][tissue2][
+                                                                          cell_ontology_class2],
+                                                                      f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
+                        lambda_list.append(lambda_)
+                        p1_list.append(p1)
+                        p2_list.append(p2)
+                        print(lambda_, p1, p2)
+
+            lambda_dict[cnsecutive_time_point].append(lambda_list)
+            p1_dict[cnsecutive_time_point].append(p1_list)
+            p2_dict[cnsecutive_time_point].append(p2_list)

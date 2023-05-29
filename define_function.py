@@ -340,9 +340,9 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
     tissue2 = adata2.obs['tissue'].unique()[0]
     cell_ontology_class1 = adata1.obs['cell_ontology_class'].unique()[0]
     cell_ontology_class2 = adata2.obs['cell_ontology_class'].unique()[0]
-    adata1.obs['group']= f'{tissue1}_{cell_ontology_class1}_yong'
-    adata1_next.obs['group']= f'{tissue1}_{cell_ontology_class1}_old'
-    adata2.obs['group']= f'{tissue2}_{cell_ontology_class2}_yong'
+    adata1.obs['group'] = f'{tissue1}_{cell_ontology_class1}_yong'
+    adata1_next.obs['group'] = f'{tissue1}_{cell_ontology_class1}_old'
+    adata2.obs['group'] = f'{tissue2}_{cell_ontology_class2}_yong'
     integrate_adata = ad.concat([adata1, adata1_next, adata2])
     sc.pp.highly_variable_genes(integrate_adata)
     integrate_adata = integrate_adata[:, integrate_adata.var.highly_variable]  # filter highly variable genes
@@ -350,7 +350,7 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
     fig = sc.pl.pca(integrate_adata, color='group', return_fig=True)
     legend = fig.get_axes()[0].get_legend()
     pl.title(title)
-    fig.savefig(f'{folder_name}/pca_{title}.png',bbox_extra_artists=(legend,), bbox_inches='tight')
+    fig.savefig(f'{folder_name}/pca_{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
 
     sc.settings.figdir = f'{folder_name}'
     sc.pl.pca_variance_ratio(integrate_adata, log=True, n_pcs=50, save=f'pca_variance_ratio_{title}.png')
@@ -362,94 +362,89 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
 
     return adata1, adata1_next, adata2, cumulative_explained_variance_ratio
 
-def wproj_adata(adata1, adata1_next, adata2, folder_name, title):
-    t_list=[1.0]
-    D_list=[]
-    x1 = np.array(adata1.obsm['X_pca'])
-    x1_next = np.array(adata1_next.obsm['X_pca'])
-    x2 = np.array(adata2.obsm['X_pca'])
 
-    x1 = x1 - np.mean(x1, axis=0)
-    x1_next = x1_next - np.mean(x1_next, axis=0)
-    x2 = x2 - np.mean(x2, axis=0)
+def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
+    lambda_list = []
+    W_list = []
+    x1_young = np.array(adata1_young.obsm['X_pca'])
+    x1_old = np.array(adata1_old.obsm['X_pca'])
+    x2_young = np.array(adata2_young.obsm['X_pca'])
 
-    w1 = np.ones((x1.shape[0],)) / x1.shape[0]
-    w1_next = np.ones((x1_next.shape[0],)) / x1_next.shape[0]
-    w2 = np.ones((x2.shape[0],)) / x2.shape[0]
+    x1_young = x1_young - np.mean(x1_young, axis=0)
+    x1_old = x1_old - np.mean(x1_old, axis=0)
+    x2_young = x2_young - np.mean(x2_young, axis=0)
+
+    w1_young = np.ones((x1_young.shape[0],)) / x1_young.shape[0]
+    w1_old = np.ones((x1_old.shape[0],)) / x1_old.shape[0]
+    w2_young = np.ones((x2_young.shape[0],)) / x2_young.shape[0]
+
+    M_1y_1o = ot.dist(x1_young, x1_old, p=2)  # Euclidean distance matrix
+    M_1y_1o = M_1y_1o / M_1y_1o.sum()
+    # OT_1y_1o = ot.emd(w1_young, w1_old, np.array(M_1y_1o))  # OT matrix
+    W_1y_1o = ot.emd2(w1_young, w1_old, np.array(M_1y_1o)) * M_1y_1o.sum() * M_1y_1o.sum()  # Wasserstein distance between young and old
+
+    M_1y_2y = ot.dist(x1_young, x2_young, p=2)  # Euclidean distance matrix
+    M_1y_2y = M_1y_2y / M_1y_2y.sum()
+    OT_1y_2y = ot.emd(w1_young, w2_young, np.array(M_1y_2y))  # OT matrix
+    W_1y_2y = ot.emd2(w1_young, w2_young, np.array(M_1y_2y)) * M_1y_2y.sum() * M_1y_2y.sum()  # Wasserstein distance between adata1_young and adata2_young
+
+    edge_list_1y_2y = extract_edges_above_threshold(OT_1y_2y, 1e-10)  # extract edges above threshold
+
+    W_bc_1o = W_1y_1o
+    lambda_list.append(0.0)
+    W_list.append(W_bc_1o)
 
     m = 0
-    M = ot.dist(x1, x1_next, p=2)  # Euclidean distance matrix
-    M = M / M.sum()
-    G = ot.emd(w1, w1_next, np.array(M))
-    L = ot.emd2(w1, w1, np.array(M))
+    while m < 19:
+        lambda_ = (m + 1) / 20
+        x_bc, w_bc = interpolate_edges(x1_young, x2_young, edge_list_1y_2y, lambda_)
+
+        M_bc_1o = ot.dist(x_bc, x1_old, p=2)
+        M_bc_1o = M_bc_1o / M_bc_1o.sum()
+        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) * M_bc_1o.sum() * M_bc_1o.sum()
+        lambda_list.append(lambda_)
+        W_list.append(W_bc_1o_new)
+
+        if W_bc_1o_new > W_bc_1o:
+            break
+
+        W_bc_1o = W_bc_1o_new # update W_bc_1o
+        m += 1 # increase m by 1
 
     n = 1
-    edge_list = extract_edges_above_threshold(G, 1 / x1.shape[0] / x1_next.shape[0] / 2) # extract edges above threshold
-
-    M = ot.dist(x1, x2, p=2)
-    M = M / M.sum()
-    D_init = ot.emd2(w1, w2, np.array(M), numItermax=1000000) * M.sum() * M.sum()
-    D = D_init
-    D_list.append(D)
-
-    while m < 19:
-        t = (m + 1) / 20
-        x_new, w_new = interpolate_edges(x1, x1_next, edge_list, t)
-
-        M = ot.dist(x_new, x2, p=2)
-        M = M / M.sum()
-        D_new = ot.emd2(w_new, w2, M, numItermax=1000000) * M.sum() * M.sum()
-        t_list.append(t)
-        D_list.append(D_new)
-
-        if D_new > D:
+    while lambda_ > -2:
+        lambda_ = (m + 1) / 20 - n / 100
+        if lambda_ <= 0:
+            lambda_ = 0
+            W_1y_bc = W_1y_2y * lambda_ * abs(lambda_)
+            p1 = W_1y_bc / W_1y_1o
+            p2 = W_1y_bc / (abs(W_1y_bc) + W_bc_1o)
             break
 
-        x = x_new
-        w = w_new
-        D = D_new
-        m += 1
+        x_bc, w_bc = interpolate_edges(x1_young, x2_young, edge_list_1y_2y, lambda_)
 
-    x = x_new
-    w = w_new
-    D = D_new
-    while t > -2:
-        t = (m + 1) / 20 - n / 100
-        if t <= 0:
-            t = 0
-            L_new = L * t * abs(t)
-            p1 = L_new / D_init
-            p2 = L_new / (abs(L_new) + D)
+        M_bc_1o = ot.dist(x_bc, x1_old, p=2)
+        M_bc_1o = M_bc_1o / M_bc_1o.sum()
+        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) * M_bc_1o.sum() * M_bc_1o.sum()
+        lambda_list.append(lambda_)
+        W_list.append(W_bc_1o_new)
+
+        if W_bc_1o_new > W_bc_1o:
+            lambda_ = round((m + 1) / 20 - (n - 1) / 100, 2)
+            W_1y_bc = W_1y_2y * lambda_ * abs(lambda_)
+            p1 = W_1y_bc / W_1y_1o
+            p2 = W_1y_bc / (abs(W_1y_bc) + W_bc_1o)
             break
 
-        x_new, w_new = interpolate_edges(x1, x1_next, edge_list, t)
+        W_bc_1o = W_bc_1o_new
+        n += 1 # increase n by 1
 
-        M = ot.dist(x_new, x2, p=2)
-        M = M / M.sum()
-        D_new = ot.emd2(w_new, w2, M, numItermax=1000000) * M.sum() * M.sum()
-        t_list.append(t)
-        D_list.append(D_new)
-
-        if D_new > D:
-            t = round((m + 1) / 20 - (n - 1) / 100, 2)
-            L_new = L * t * abs(t)
-            p1 = L_new / D_init
-            p2 = L_new / (abs(L_new) + D)
-            break
-
-        x = x_new
-        w = w_new
-        D = D_new
-        n += 1
-
-    lambda_ = t
-    fig = pl.figure()
-    pl.plot(t_list, D_list)
+    pl.plot(lambda_list, W_list, 'x')
     pl.xlabel('lambda')
     pl.ylabel('D')
-    pl.savefig(f'{folder_name}/lambda_D_{folder_name}_{title}.png')
+    pl.savefig(f'{folder_name}/lambda_D_{title}.png')
 
-    return lambda_,p1,p2
+    return lambda_, p1, p2
 
 
 def wproj_adata_list(adata_list, m, n):

@@ -73,12 +73,23 @@ for cnsecutive_time_point_list in cnsecutive_time_points:
 # sort the cell_ontology_class_tissue_age_dict by alphabetical order
 for cnsecutive_time_point_list in cnsecutive_time_points:
     cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
+    # list(cell_ontology_class_tissue_age_dict[cnsecutive_time_point].keys()).sort()
     for tissue in tissue_age_dict[cnsecutive_time_point]:
         cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue].sort()
-
+'''
 print(tissue_age_dict['3m_18m'])
-print(cell_ontology_class_tissue_age_dict['3m_18m']['Bladder'])
+print(cell_ontology_class_tissue_age_dict['3m_18m']['Brain_Myeloid'])
+adata1_young = adata_cell_ontology_class_tissue_age_dict['3m_18m']['Brain_Myeloid']['macrophage']['3m']
+adata1_old = adata_cell_ontology_class_tissue_age_dict['3m_18m']['Brain_Myeloid']['macrophage']['18m']
+adata2_young = adata_cell_ontology_class_tissue_age_dict['3m_18m']['Brain_Non-Myeloid']['endothelial cell']['3m']
 
+adata1_yong_pca, adata1_old_pca, adata2_yong_pca, cumulative_explained_variance_ratio = define_function.process_pca(
+    adata1_young, adata1_old, adata2_young, image_folder_path, 'Brain_Myeloid_macrophage_3m_18m')
+print(cumulative_explained_variance_ratio)
+lambda_, p1, p2 = define_function.wproj_adata(adata1_yong_pca, adata1_old_pca, adata2_yong_pca,
+                                                                      image_folder_path,'Brain_Myeloid_macrophage_3m_18m')
+print(lambda_, p1, p2)
+'''
 lambda_dict = {}
 p1_dict = {}
 p2_dict = {}
@@ -145,3 +156,30 @@ for cnsecutive_time_point_list in cnsecutive_time_points:
             lambda_dict[cnsecutive_time_point].append(lambda_list)
             p1_dict[cnsecutive_time_point].append(p1_list)
             p2_dict[cnsecutive_time_point].append(p2_list)
+
+# save the results
+cell_ontology_class_ticks_dict = {}
+for cnsecutive_time_point_list in cnsecutive_time_points:
+    cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
+    cell_ontology_class_ticks_dict[cnsecutive_time_point] = []
+    for tissue in tissue_age_dict[cnsecutive_time_point]:
+        for cell_ontology_class in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue]:
+            cell_ontology_class_ticks_dict[cnsecutive_time_point].append('_'.join([tissue, cell_ontology_class]))
+
+for cnsecutive_time_point_list in cnsecutive_time_points:
+    cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
+    time_point_yong = cnsecutive_time_point_list[0]
+    time_point_old = cnsecutive_time_point_list[1]
+    lambda_list = lambda_dict[cnsecutive_time_point]
+    p1_list = p1_dict[cnsecutive_time_point]
+    p2_list = p2_dict[cnsecutive_time_point]
+    lambda_df = pd.DataFrame(lambda_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point], columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
+    p1_df = pd.DataFrame(p1_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point], columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
+    p2_df = pd.DataFrame(p2_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point], columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
+    lambda_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/lambda_{time_point_yong}_{time_point_old}.csv')
+    p1_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/p1_{time_point_yong}_{time_point_old}.csv')
+    p2_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/p2_{time_point_yong}_{time_point_old}.csv')
+
+
+
+

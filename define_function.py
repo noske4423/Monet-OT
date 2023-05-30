@@ -343,9 +343,21 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
     adata1.obs['group'] = f'{tissue1}_{cell_ontology_class1}_yong'
     adata1_next.obs['group'] = f'{tissue1}_{cell_ontology_class1}_old'
     adata2.obs['group'] = f'{tissue2}_{cell_ontology_class2}_yong'
+
     integrate_adata = ad.concat([adata1, adata1_next, adata2])
     sc.pp.highly_variable_genes(integrate_adata)
     integrate_adata = integrate_adata[:, integrate_adata.var.highly_variable]  # filter highly variable genes
+
+    adata1 = integrate_adata[integrate_adata.obs['group'] == f'{tissue1}_{cell_ontology_class1}_yong']
+    adata1_next = integrate_adata[integrate_adata.obs['group'] == f'{tissue1}_{cell_ontology_class1}_old']
+    adata2 = integrate_adata[integrate_adata.obs['group'] == f'{tissue2}_{cell_ontology_class2}_yong']
+
+    # Set column average to 0
+    adata1.X = adata1.X - adata1.X.mean(axis=0)
+    adata1_next.X = adata1_next.X - adata1_next.X.mean(axis=0)
+    adata2.X = adata2.X - adata2.X.mean(axis=0)
+
+    integrate_adata = ad.concat([adata1, adata1_next, adata2])
     sc.tl.pca(integrate_adata, n_comps=50)  # run PCA
     fig = sc.pl.pca(integrate_adata, color='group', return_fig=True)
     legend = fig.get_axes()[0].get_legend()
@@ -353,8 +365,8 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
     fig.savefig(f'{folder_name}/pca_{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
 
     sc.settings.figdir = f'{folder_name}'
-    sc.pl.pca_variance_ratio(integrate_adata, log=True, n_pcs=50, save=f'pca_variance_ratio_{title}.png')
-    sc.pl.pca_loadings(integrate_adata, components=[1, 2, 3], save=f'pca_loadings_{title}.png')
+    sc.pl.pca_variance_ratio(integrate_adata, log=True, n_pcs=50, save=f'{title}.png')
+    sc.pl.pca_loadings(integrate_adata, components=[1, 2, 3], save=f'{title}.png')
     cumulative_explained_variance_ratio = integrate_adata.uns['pca']['variance_ratio'].sum()
     adata1.obsm['X_pca'] = integrate_adata[adata1.obs.index].obsm['X_pca']
     adata1_next.obsm['X_pca'] = integrate_adata[adata1_next.obs.index].obsm['X_pca']
@@ -370,35 +382,34 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
     x1_old = np.array(adata1_old.obsm['X_pca'])
     x2_young = np.array(adata2_young.obsm['X_pca'])
 
-    x1_young = x1_young - np.mean(x1_young, axis=0)
-    x1_old = x1_old - np.mean(x1_old, axis=0)
-    x2_young = x2_young - np.mean(x2_young, axis=0)
+    # x1_young = x1_young - np.mean(x1_young, axis=0)
+    # x1_old = x1_old - np.mean(x1_old, axis=0)
+    # x2_young = x2_young - np.mean(x2_young, axis=0)
 
     w1_young = np.ones((x1_young.shape[0],)) / x1_young.shape[0]
     w1_old = np.ones((x1_old.shape[0],)) / x1_old.shape[0]
     w2_young = np.ones((x2_young.shape[0],)) / x2_young.shape[0]
 
     M_1y_1o = ot.dist(x1_young, x1_old, p=2)  # Euclidean distance matrix
-    M_1y_1o = M_1y_1o / M_1y_1o.sum()
+    M = M_1y_1o
+    M_1y_1o = M_1y_1o / M.sum()
     # OT_1y_1o = ot.emd(w1_young, w1_old, np.array(M_1y_1o))  # OT matrix
-    W_1y_1o = ot.emd2(w1_young, w1_old,
-                      np.array(M_1y_1o)) #* M_1y_1o.sum() * M_1y_1o.sum()  # Wasserstein distance between young and old
+    W_1y_1o = ot.emd2(w1_young, w1_old, np.array(M_1y_1o))  # Wasserstein distance between young and old
 
     M_1y_2y = ot.dist(x1_young, x2_young, p=2)  # Euclidean distance matrix
     print(M_1y_2y.sum())
-    M_1y_2y = M_1y_2y / M_1y_2y.sum()
+    M_1y_2y = M_1y_2y / M.sum()
     OT_1y_2y = ot.emd(w1_young, w2_young, np.array(M_1y_2y))  # OT matrix
-    W_1y_2y = ot.emd2(w1_young, w2_young, np.array(
-        M_1y_2y)) #* M_1y_2y.sum() * M_1y_2y.sum()  # Wasserstein distance between adata1_young and adata2_young
+    W_1y_2y = ot.emd2(w1_young, w2_young,
+                      np.array(M_1y_2y))  # Wasserstein distance between adata1_young and adata2_young
 
     M_2y_1o = ot.dist(x2_young, x1_old, p=2)  # Euclidean distance matrix
-    M_2y_1o = M_2y_1o / M_2y_1o.sum()
-    #OT_2y_1o = ot.emd(w2_young, w1_old, np.array(M_2y_1o))  # OT matrix
-    W_2y_1o = ot.emd2(w2_young, w1_old, np.array(
-        M_2y_1o)) #* M_2y_1o.sum() * M_2y_1o.sum()  # Wasserstein distance between adata2_young and adata1_old
+    M_2y_1o = M_2y_1o / M.sum()
+    # OT_2y_1o = ot.emd(w2_young, w1_old, np.array(M_2y_1o))  # OT matrix
+    W_2y_1o = ot.emd2(w2_young, w1_old, np.array(M_2y_1o))  # Wasserstein distance between adata2_young and adata1_old
 
     edge_list_1y_2y = extract_edges_above_threshold(OT_1y_2y, 0)  # extract edges above threshold
-    print(x1_young.shape[0],x2_young.shape[0],x1_old.shape[0],len(edge_list_1y_2y))
+    print(x1_young.shape[0], x2_young.shape[0], x1_old.shape[0], len(edge_list_1y_2y))
 
     lambda_list.append(0.0)
     W_list.append(W_1y_1o)
@@ -408,15 +419,15 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
 
     W_bc_1o = W_1y_1o
 
-    m = 0
+    m = 0  # number of iterations
     while m < 19:
         lambda_ = (m + 1) / 20
         x_bc, w_bc = interpolate_edges(x1_young, x2_young, edge_list_1y_2y, lambda_)
 
         M_bc_1o = ot.dist(x_bc, x1_old, p=2)
         print(M_bc_1o.sum())
-        M_bc_1o = M_bc_1o / M_bc_1o.sum()
-        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) #* M_bc_1o.sum() * M_bc_1o.sum()
+        M_bc_1o = M_bc_1o / M.sum()
+        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000)
         lambda_list.append(lambda_)
         W_list.append(W_bc_1o_new)
 
@@ -426,7 +437,7 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
         W_bc_1o = W_bc_1o_new  # update W_bc_1o
         m += 1  # increase m by 1
 
-    n = 1
+    n = 1  # number of iterations
     while lambda_ > -2:
         lambda_ = (m + 1) / 20 - n / 100
         if lambda_ <= 0:
@@ -439,8 +450,8 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
         x_bc, w_bc = interpolate_edges(x1_young, x2_young, edge_list_1y_2y, lambda_)
 
         M_bc_1o = ot.dist(x_bc, x1_old, p=2)
-        M_bc_1o = M_bc_1o / M_bc_1o.sum()
-        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000) #* M_bc_1o.sum() * M_bc_1o.sum()
+        M_bc_1o = M_bc_1o / M.sum()
+        W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000)
         lambda_list.append(lambda_)
         W_list.append(W_bc_1o_new)
 

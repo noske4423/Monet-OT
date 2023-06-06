@@ -335,7 +335,7 @@ def reconstruct_adata(adata_list):
     return adata_list_new
 
 
-def process_pca(adata1, adata1_next, adata2, folder_name, title):
+def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title):
     tissue1 = adata1.obs['tissue'].unique()[0]
     tissue2 = adata2.obs['tissue'].unique()[0]
     cell_ontology_class1 = adata1.obs['cell_ontology_class'].unique()[0]
@@ -343,6 +343,7 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
     adata1.obs['group'] = f'{tissue1}_{cell_ontology_class1}_yong'
     adata1_next.obs['group'] = f'{tissue1}_{cell_ontology_class1}_old'
     adata2.obs['group'] = f'{tissue2}_{cell_ontology_class2}_yong'
+    adata2_next.obs['group'] = f'{tissue2}_{cell_ontology_class2}_old'
 
     integrate_adata = ad.concat([adata1, adata1_next, adata2])
     sc.pp.highly_variable_genes(integrate_adata)
@@ -351,13 +352,19 @@ def process_pca(adata1, adata1_next, adata2, folder_name, title):
     adata1 = integrate_adata[integrate_adata.obs['group'] == f'{tissue1}_{cell_ontology_class1}_yong']
     adata1_next = integrate_adata[integrate_adata.obs['group'] == f'{tissue1}_{cell_ontology_class1}_old']
     adata2 = integrate_adata[integrate_adata.obs['group'] == f'{tissue2}_{cell_ontology_class2}_yong']
+    adata2_next = integrate_adata[integrate_adata.obs['group'] == f'{tissue2}_{cell_ontology_class2}_old']
 
-    # Set column average to 0
-    adata1.X = adata1.X - adata1.X.mean(axis=0)
-    adata1_next.X = adata1_next.X - adata1_next.X.mean(axis=0)
-    adata2.X = adata2.X - adata2.X.mean(axis=0)
+    integrate_adata1 = ad.concat([adata1, adata1_next])
+    integrate_adata1.X = integrate_adata1.X - integrate_adata1.X.mean(axis=0)
+    integrate_adata2 = ad.concat([adata2, adata2_next])
+    integrate_adata2.X = integrate_adata2.X - integrate_adata2.X.mean(axis=0)
 
-    integrate_adata = ad.concat([adata1, adata1_next, adata2])
+    adata1 = integrate_adata1[integrate_adata1.obs['group'] == f'{tissue1}_{cell_ontology_class1}_yong']
+    adata1_next = integrate_adata1[integrate_adata1.obs['group'] == f'{tissue1}_{cell_ontology_class1}_old']
+    adata2 = integrate_adata2[integrate_adata2.obs['group'] == f'{tissue2}_{cell_ontology_class2}_yong']
+    adata2_next = integrate_adata2[integrate_adata2.obs['group'] == f'{tissue2}_{cell_ontology_class2}_old']
+
+    integrate_adata = ad.concat([adata1, adata1_next, adata2, adata2_next])
     sc.tl.pca(integrate_adata, n_comps=50)  # run PCA
     fig = sc.pl.pca(integrate_adata, color='group', return_fig=True)
     legend = fig.get_axes()[0].get_legend()

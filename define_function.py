@@ -4,6 +4,7 @@ import scanpy as sc
 import random
 import ot
 import matplotlib.pylab as pl
+import gc
 
 
 def sort_adata_by_attribute(adata, attribute):
@@ -272,6 +273,34 @@ def preprocess_data(a3, a18, b3, celltype_a, tissue_a, tissue_b):
     return adata_list
 
 
+def generate_artificial_adata(adata, param_list, noisy_col_indices=None):
+    row_noise_ratio, col_noise_ratio, mu, sigma = param_list
+    if row_noise_ratio == 0 or col_noise_ratio == 0 or mu == 0 or sigma == 0:
+        print('No noise added to the data')
+        return adata,noisy_col_indices
+    else:
+        x = adata.X
+        x_noisy = np.copy(x)
+
+        num_noisy_rows = int(row_noise_ratio * x_noisy.shape[0])
+        num_noisy_cols = int(col_noise_ratio * x_noisy.shape[1])
+
+        if noisy_col_indices is None:
+            noisy_col_indices = np.random.choice(x_noisy.shape[1], num_noisy_cols, replace=False)
+
+        noisy_row_indices = np.random.choice(x_noisy.shape[0], num_noisy_rows, replace=False)
+
+        for i in noisy_row_indices:
+            for j in noisy_col_indices:
+                x_noisy[i][j] += np.random.normal(mu, sigma)
+
+        artificial_adata = adata.copy()
+        artificial_adata.X = x_noisy
+
+        return artificial_adata, noisy_row_indices
+
+
+
 def apply_noise(adata_list, p1, p2, mu1, mu2, sigma1, sigma2, noise_idx):
     """Applies noise to the data.
 
@@ -334,8 +363,8 @@ def reconstruct_adata(adata_list):
 
     return adata_list_new
 
-
-def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title):
+def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title, highly_variable_genes = True):
+    print(highly_variable_genes)
     tissue1 = adata1.obs['tissue'].unique()[0]
     tissue2 = adata2.obs['tissue'].unique()[0]
     cell_ontology_class1 = adata1.obs['cell_ontology_class'].unique()[0]
@@ -346,13 +375,18 @@ def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title):
     adata2_next.obs['group'] = f'{tissue2}_{cell_ontology_class2}_old'
 
     integrate_adata = ad.concat([adata1, adata1_next, adata2])
-    sc.pp.highly_variable_genes(integrate_adata)
-    integrate_adata = integrate_adata[:, integrate_adata.var.highly_variable]  # filter highly variable genes
+    if highly_variable_genes == True:
+        sc.pp.highly_variable_genes(integrate_adata)
+        adata1 = adata1[:, integrate_adata.var.highly_variable]
+        adata1_next = adata1_next[:, integrate_adata.var.highly_variable]
+        adata2 = adata2[:, integrate_adata.var.highly_variable]
+        adata2_next = adata2_next[:, integrate_adata.var.highly_variable]
+    else:
+        print('Not filtering highly variable genes')
+    # integrate_adata = integrate_adata[:, integrate_adata.var.highly_variable]  # filter highly variable genes
 
-    adata1 = integrate_adata[integrate_adata.obs['group'] == f'{tissue1}_{cell_ontology_class1}_yong']
-    adata1_next = integrate_adata[integrate_adata.obs['group'] == f'{tissue1}_{cell_ontology_class1}_old']
-    adata2 = integrate_adata[integrate_adata.obs['group'] == f'{tissue2}_{cell_ontology_class2}_yong']
-    adata2_next = integrate_adata[integrate_adata.obs['group'] == f'{tissue2}_{cell_ontology_class2}_old']
+    del integrate_adata
+    # gc.collect()
 
     integrate_adata1 = ad.concat([adata1, adata1_next])
     integrate_adata1.X = integrate_adata1.X - integrate_adata1.X.mean(axis=0)
@@ -363,13 +397,24 @@ def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title):
     adata1_next = integrate_adata1[integrate_adata1.obs['group'] == f'{tissue1}_{cell_ontology_class1}_old']
     adata2 = integrate_adata2[integrate_adata2.obs['group'] == f'{tissue2}_{cell_ontology_class2}_yong']
     adata2_next = integrate_adata2[integrate_adata2.obs['group'] == f'{tissue2}_{cell_ontology_class2}_old']
+    # print(adata2_next.obs['group'].unique())
+    del integrate_adata1, integrate_adata2
+    # gc.collect()
 
     integrate_adata = ad.concat([adata1, adata1_next, adata2, adata2_next])
+    # print(integrate_adata.obs['group'].unique())
+    print(integrate_adata.obs['group'].unique())
+    print(integrate_adata.n_obs)
+    print(integrate_adata.n_vars)
     sc.tl.pca(integrate_adata, n_comps=50)  # run PCA
+
     fig = sc.pl.pca(integrate_adata, color='group', return_fig=True)
     legend = fig.get_axes()[0].get_legend()
     pl.title(title)
     fig.savefig(f'{folder_name}/pca_{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
+    pl.close(fig)
+    del fig
+    gc.collect()
 
     sc.settings.figdir = f'{folder_name}'
     sc.pl.pca_variance_ratio(integrate_adata, log=True, n_pcs=50, save=f'{title}.png')
@@ -404,7 +449,7 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
     W_1y_1o = ot.emd2(w1_young, w1_old, np.array(M_1y_1o))  # Wasserstein distance between young and old
 
     M_1y_2y = ot.dist(x1_young, x2_young, p=2)  # Euclidean distance matrix
-    print(M_1y_2y.sum())
+    # print(M_1y_2y.sum())
     M_1y_2y = M_1y_2y / M.sum()
     OT_1y_2y = ot.emd(w1_young, w2_young, np.array(M_1y_2y))  # OT matrix
     W_1y_2y = ot.emd2(w1_young, w2_young,
@@ -416,7 +461,7 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
     W_2y_1o = ot.emd2(w2_young, w1_old, np.array(M_2y_1o))  # Wasserstein distance between adata2_young and adata1_old
 
     edge_list_1y_2y = extract_edges_above_threshold(OT_1y_2y, 0)  # extract edges above threshold
-    print(x1_young.shape[0], x2_young.shape[0], x1_old.shape[0], len(edge_list_1y_2y))
+    # print(x1_young.shape[0], x2_young.shape[0], x1_old.shape[0], len(edge_list_1y_2y))
 
     lambda_list.append(0.0)
     W_list.append(W_1y_1o)
@@ -432,7 +477,7 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
         x_bc, w_bc = interpolate_edges(x1_young, x2_young, edge_list_1y_2y, lambda_)
 
         M_bc_1o = ot.dist(x_bc, x1_old, p=2)
-        print(M_bc_1o.sum())
+        # print(M_bc_1o.sum())
         M_bc_1o = M_bc_1o / M.sum()
         W_bc_1o_new = ot.emd2(w_bc, w1_old, M_bc_1o, numItermax=1000000)
         lambda_list.append(lambda_)
@@ -476,10 +521,48 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
     pl.xlabel('lambda')
     pl.ylabel('W_bc_A_old')
     pl.savefig(f'{folder_name}/lambda_D_{title}.png')
-
-    print(w_bc.sum())
+    pl.close()
+    del lambda_list, W_list
+    del M_1y_1o, M_1y_2y, M_2y_1o, M_bc_1o
+    del OT_1y_2y
+    del W_1y_1o, W_1y_2y, W_2y_1o, W_bc_1o
+    del x1_young, x2_young, x1_old, x_bc, w_bc
+    # gc.collect()
 
     return lambda_, p1, p2
+
+
+def worker(args):
+    adata_cell_ontology_class_tissue_age_dict, cnsecutive_time_point, cnsecutive_time_point_list, time_point_yong, time_point_old, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2, image_folder_path_pca_dict, i, j = args
+    print(i, j)
+    if tissue1 != tissue2 or cell_ontology_class1 != cell_ontology_class2:
+        adata1_yong = \
+            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                time_point_yong]
+        adata1_old = \
+            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                time_point_old]
+        adata2_yong = \
+            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
+                cell_ontology_class2][
+                time_point_yong]
+        adata2_old = \
+            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
+                cell_ontology_class2][
+                time_point_old]
+        adata1_yong_pca, adata1_old_pca, adata2_yong_pca, cumulative_explained_variance_ratio = define_function.process_pca(
+            adata1_yong, adata1_old, adata2_yong, adata2_old,
+            image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][
+                cell_ontology_class2],
+            f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
+        lambda_, p1, p2 = define_function.wproj_adata(adata1_yong_pca, adata1_old_pca, adata2_yong_pca,
+                                                      image_folder_path_pca_dict[cnsecutive_time_point][
+                                                          tissue1][cell_ontology_class1][tissue2][
+                                                          cell_ontology_class2],
+                                                      f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
+        return cnsecutive_time_point, lambda_, p1, p2, i, j
+    else:
+        return 0, 0, 0, 0
 
 
 def wproj_adata_list(adata_list, m, n):

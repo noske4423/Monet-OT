@@ -18,6 +18,7 @@ from datetime import datetime
 import os
 import gc
 from multiprocessing import Pool, Manager
+import time
 
 # Set up the folder to save the images
 now = datetime.now()
@@ -103,8 +104,105 @@ print(lambda_, p1, p2)
 lambda_dict = {}
 p1_dict = {}
 p2_dict = {}
-image_folder_path_pca_dict = {}
 
+if __name__ == '__main__':
+    print('start')
+    for cnsecutive_time_point_list in cnsecutive_time_points:
+        cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
+        time_point_yong = cnsecutive_time_point_list[0]
+        time_point_old = cnsecutive_time_point_list[1]
+        lambda_dict[cnsecutive_time_point] = []
+        p1_dict[cnsecutive_time_point] = []
+        p2_dict[cnsecutive_time_point] = []
+        for tissue1 in tissue_age_dict[cnsecutive_time_point]:
+            for cell_ontology_class1 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1]:
+                adata1_young = \
+                    adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                        time_point_yong]
+                adata1_old = \
+                    adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
+                        time_point_old]
+                lambda_list = []
+                p1_list = []
+                p2_list = []
+
+                for tissue2 in tissue_age_dict[cnsecutive_time_point]:
+                    for cell_ontology_class2 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2]:
+                        if tissue1 != tissue2 or cell_ontology_class1 != cell_ontology_class2:
+                            image_folder_path_pca = f'{image_folder_path}/{cnsecutive_time_point}/{tissue1}/{cell_ontology_class1}/{tissue2}/{cell_ontology_class2}'
+                            title = f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}_{time_point_yong}_{time_point_old}'
+                            if not os.path.exists(image_folder_path_pca):
+                                os.makedirs(image_folder_path_pca)
+                            adata2_young = adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][cell_ontology_class2][time_point_yong]
+                            adata2_old = adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][cell_ontology_class2][time_point_old]
+                            adata_integrated = define_function.integrate_adata(adata1_young, adata1_old, adata2_young, adata2_old)
+
+                            print(tissue1, cell_ontology_class1, tissue2, cell_ontology_class2)
+
+                            p = Pool(1)
+                            print('process start')
+                            result = p.apply_async(define_function.plot_pca, [[adata_integrated, image_folder_path_pca, title]])
+                            print(1)
+                            result.wait()
+                            while not result.ready():
+                                print(result.ready())
+                                time.sleep(1)
+                            adata_integrated = result.get()
+                            p.close()
+
+                            print(2)
+                            cumulative_explained_variance_ratio = adata_integrated.uns['pca']['variance_ratio'].sum()
+                            print(3)
+                            adata1_young.obsm['X_pca'] = adata_integrated[adata1_young.obs.index].obsm['X_pca']
+                            adata1_old.obsm['X_pca'] = adata_integrated[adata1_old.obs.index].obsm['X_pca']
+                            adata2_young.obsm['X_pca'] = adata_integrated[adata2_young.obs.index].obsm['X_pca']
+                            print(cumulative_explained_variance_ratio)
+
+                            p = Pool(1)
+                            result = p.apply_async(define_function.wproj_adata([[adata1_young, adata1_old, adata2_young,image_folder_path_pca, title]]))
+                            result.wait()
+                            lambda_, p1, p2 = result.get()
+                            p.close()
+
+                            lambda_list.append(lambda_)
+                            p1_list.append(p1)
+                            p2_list.append(p2)
+                            print(lambda_, p1, p2)
+
+                            print('process end')
+                            print(lambda_list)
+
+                        else:
+                            lambda_list.append(0)
+                            p1_list.append(0)
+                            p2_list.append(0)
+
+                lambda_dict[cnsecutive_time_point].append(lambda_list)
+                p1_dict[cnsecutive_time_point].append(p1_list)
+                p2_dict[cnsecutive_time_point].append(p2_list)
+
+    for cnsecutive_time_point_list in cnsecutive_time_points:
+        cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
+        time_point_yong = cnsecutive_time_point_list[0]
+        time_point_old = cnsecutive_time_point_list[1]
+        lambda_list = lambda_dict[cnsecutive_time_point]
+        p1_list = p1_dict[cnsecutive_time_point]
+        p2_list = p2_dict[cnsecutive_time_point]
+        lambda_df = pd.DataFrame(lambda_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point],
+                                 columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
+        p1_df = pd.DataFrame(p1_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point],
+                             columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
+        p2_df = pd.DataFrame(p2_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point],
+                             columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
+        lambda_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/lambda_{time_point_yong}_{time_point_old}.csv')
+        p1_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/p1_{time_point_yong}_{time_point_old}.csv')
+        p2_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/p2_{time_point_yong}_{time_point_old}.csv')
+    print('finish')
+
+else:
+    print('not start')
+
+'''
 if __name__ == '__main__':
     tasks_dict = {}
     for cnsecutive_time_point_list in cnsecutive_time_points:
@@ -156,10 +254,11 @@ if __name__ == '__main__':
         for tissue1 in tissue_age_dict[cnsecutive_time_point]:
             results_dict[cnsecutive_time_point][tissue1] = {}
             for cell_ontology_class1 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1]:
-                with Pool() as pool:
+                with Pool(5) as pool:
                     results_dict[cnsecutive_time_point][tissue1][cell_ontology_class1] = pool.map(
                         define_function.worker, tasks_dict[cnsecutive_time_point][tissue1][cell_ontology_class1])
-                    print(results_dict[cnsecutive_time_point][tissue1][cell_ontology_class1])
+                    print(f'results={results_dict[cnsecutive_time_point][tissue1][cell_ontology_class1]}')
+                    pool.close()
 
     for cnsecutive_time_point_list in cnsecutive_time_points:
         cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
@@ -172,9 +271,7 @@ if __name__ == '__main__':
                     p2_dict[cnsecutive_time_point][i][j] = p2
 
     print(lambda_dict['3m_18m'])
-    print(lambda_dict['3m_18m'])
 
-'''
 time_point_list = []
 tissue_list = []
 cell_ontology_class_list = []
@@ -292,84 +389,4 @@ p2_list_cosecutive_time_point = np.load(
 print(lambda_list_cosecutive_time_point)
 print(p1_list_cosecutive_time_point)
 print(p2_list_cosecutive_time_point)
-
-for cnsecutive_time_point_list in cnsecutive_time_points:
-    cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
-    time_point_yong = cnsecutive_time_point_list[0]
-    time_point_old = cnsecutive_time_point_list[1]
-    lambda_dict[cnsecutive_time_point] = []
-    p1_dict[cnsecutive_time_point] = []
-    p2_dict[cnsecutive_time_point] = []
-    image_folder_path_pca_dict[cnsecutive_time_point] = {}
-    for tissue1 in tissue_age_dict[cnsecutive_time_point]:
-        image_folder_path_pca_dict[cnsecutive_time_point][tissue1] = {}
-        for cell_ontology_class1 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1]:
-            adata1_yong = \
-                adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                    time_point_yong]
-            adata1_old = \
-                adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                    time_point_old]
-            lambda_list = []
-            p1_list = []
-            p2_list = []
-            image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1] = {}
-
-            for tissue2 in tissue_age_dict[cnsecutive_time_point]:
-                image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2] = {}
-                for cell_ontology_class2 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2]:
-                    if tissue1 != tissue2 or cell_ontology_class1 != cell_ontology_class2:
-                        image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][
-                            cell_ontology_class2] = f'{image_folder_path}/{cnsecutive_time_point}/{tissue1}/{cell_ontology_class1}/{tissue2}/{cell_ontology_class2}'
-                        if not os.path.exists(
-                                image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                                    tissue2][cell_ontology_class2]):
-                            os.makedirs(
-                                image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                                    tissue2][cell_ontology_class2])
-                        adata2_yong = \
-                            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
-                                cell_ontology_class2][
-                                time_point_yong]
-                        adata2_old = \
-                            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
-                                cell_ontology_class2][
-                                time_point_old]
-                        adata1_yong_pca, adata1_old_pca, adata2_yong_pca, cumulative_explained_variance_ratio = define_function.process_pca(
-                            adata1_yong, adata1_old, adata2_yong,
-                            image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][
-                                cell_ontology_class2],
-                            f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
-                        print(cumulative_explained_variance_ratio)
-                        lambda_, p1, p2 = define_function.wproj_adata(adata1_yong_pca, adata1_old_pca, adata2_yong_pca,
-                                                                      image_folder_path_pca_dict[cnsecutive_time_point][
-                                                                          tissue1][cell_ontology_class1][tissue2][
-                                                                          cell_ontology_class2],
-                                                                      f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
-                        lambda_list.append(lambda_)
-                        p1_list.append(p1)
-                        p2_list.append(p2)
-                        print(lambda_, p1, p2)
-
-            lambda_dict[cnsecutive_time_point].append(lambda_list)
-            p1_dict[cnsecutive_time_point].append(p1_list)
-            p2_dict[cnsecutive_time_point].append(p2_list)
-
-
-for cnsecutive_time_point_list in cnsecutive_time_points:
-    cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
-    time_point_yong = cnsecutive_time_point_list[0]
-    time_point_old = cnsecutive_time_point_list[1]
-    lambda_list = lambda_dict[cnsecutive_time_point]
-    p1_list = p1_dict[cnsecutive_time_point]
-    p2_list = p2_dict[cnsecutive_time_point]
-    lambda_df = pd.DataFrame(lambda_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point],
-                             columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
-    p1_df = pd.DataFrame(p1_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point],
-                         columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
-    p2_df = pd.DataFrame(p2_list, index=cell_ontology_class_ticks_dict[cnsecutive_time_point],
-                         columns=cell_ontology_class_ticks_dict[cnsecutive_time_point])
-    lambda_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/lambda_{time_point_yong}_{time_point_old}.csv')
-    p1_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/p1_{time_point_yong}_{time_point_old}.csv')
-    p2_df.to_csv(f'{image_folder_path}/{cnsecutive_time_point}/p2_{time_point_yong}_{time_point_old}.csv')
 '''

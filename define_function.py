@@ -5,6 +5,7 @@ import random
 import ot
 import matplotlib.pylab as pl
 import gc
+from multiprocessing import Pool
 
 
 def sort_adata_by_attribute(adata, attribute):
@@ -277,7 +278,7 @@ def generate_artificial_adata(adata, param_list, noisy_col_indices=None):
     row_noise_ratio, col_noise_ratio, mu, sigma = param_list
     if row_noise_ratio == 0 or col_noise_ratio == 0 or mu == 0 or sigma == 0:
         print('No noise added to the data')
-        return adata,noisy_col_indices
+        return adata, noisy_col_indices
     else:
         x = adata.X
         x_noisy = np.copy(x)
@@ -298,7 +299,6 @@ def generate_artificial_adata(adata, param_list, noisy_col_indices=None):
         artificial_adata.X = x_noisy
 
         return artificial_adata, noisy_row_indices
-
 
 
 def apply_noise(adata_list, p1, p2, mu1, mu2, sigma1, sigma2, noise_idx):
@@ -363,8 +363,39 @@ def reconstruct_adata(adata_list):
 
     return adata_list_new
 
-def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title, highly_variable_genes = True):
-    print(highly_variable_genes)
+def plot(args):
+    x, y, folder_name, title, plot_title, x_name, y_name = args
+    pl.plot(x, y, 'x')
+    pl.title(f'{plot_title}_{title}')
+    pl.xlabel(x_name)
+    pl.ylabel(y_name)
+    pl.savefig(f'{folder_name}/{plot_title}_{title}.png')
+    pl.close()
+
+
+def plot_pca(args, color='group', n_pcs=50):
+    """Plots PCA for the data.
+
+:param arg: List containing the arguments for the function
+    """
+    adata, folder_name, title = args
+
+    sc.tl.pca(adata, n_comps=n_pcs)
+    fig = sc.pl.pca(adata, color=color, return_fig=True)
+    legend = fig.get_axes()[0].get_legend()
+    pl.title(title)
+    fig.savefig(f'{folder_name}/pca_{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
+    pl.close(fig)
+
+    sc.settings.figdir = f'{folder_name}'
+    sc.pl.pca_variance_ratio(adata, log=True, n_pcs=n_pcs, save=f'{title}.png')
+    sc.pl.pca_loadings(adata, components=[1, 2, 3], save=f'{title}.png')
+
+    return adata
+
+
+def integrate_adata(adata1, adata1_next, adata2, adata2_next, highly_variable_genes=True):
+    # print(highly_variable_genes)
     tissue1 = adata1.obs['tissue'].unique()[0]
     tissue2 = adata2.obs['tissue'].unique()[0]
     cell_ontology_class1 = adata1.obs['cell_ontology_class'].unique()[0]
@@ -402,32 +433,13 @@ def process_pca(adata1, adata1_next, adata2, adata2_next, folder_name, title, hi
     # gc.collect()
 
     integrate_adata = ad.concat([adata1, adata1_next, adata2, adata2_next])
-    # print(integrate_adata.obs['group'].unique())
-    print(integrate_adata.obs['group'].unique())
-    print(integrate_adata.n_obs)
-    print(integrate_adata.n_vars)
-    sc.tl.pca(integrate_adata, n_comps=50)  # run PCA
 
-    fig = sc.pl.pca(integrate_adata, color='group', return_fig=True)
-    legend = fig.get_axes()[0].get_legend()
-    pl.title(title)
-    fig.savefig(f'{folder_name}/pca_{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
-    pl.close(fig)
-    del fig
-    gc.collect()
-
-    sc.settings.figdir = f'{folder_name}'
-    sc.pl.pca_variance_ratio(integrate_adata, log=True, n_pcs=50, save=f'{title}.png')
-    sc.pl.pca_loadings(integrate_adata, components=[1, 2, 3], save=f'{title}.png')
-    cumulative_explained_variance_ratio = integrate_adata.uns['pca']['variance_ratio'].sum()
-    adata1.obsm['X_pca'] = integrate_adata[adata1.obs.index].obsm['X_pca']
-    adata1_next.obsm['X_pca'] = integrate_adata[adata1_next.obs.index].obsm['X_pca']
-    adata2.obsm['X_pca'] = integrate_adata[adata2.obs.index].obsm['X_pca']
-
-    return adata1, adata1_next, adata2, cumulative_explained_variance_ratio
+    return integrate_adata
 
 
-def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
+
+def wproj_adata(args):
+    adata1_young, adata1_old, adata2_young, folder_name, title = args
     lambda_list = []
     W_list = []
     x1_young = np.array(adata1_young.obsm['X_pca'])
@@ -517,11 +529,8 @@ def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
         W_bc_1o = W_bc_1o_new
         n += 1  # increase n by 1
 
-    pl.plot(lambda_list, W_list, 'x')
-    pl.xlabel('lambda')
-    pl.ylabel('W_bc_A_old')
-    pl.savefig(f'{folder_name}/lambda_D_{title}.png')
-    pl.close()
+    plot([lambda_list, W_list, folder_name, title, 'lambda_W', r'\lambda', r'$W(Bar(\lambda),A_{old})$'])
+
     del lambda_list, W_list
     del M_1y_1o, M_1y_2y, M_2y_1o, M_bc_1o
     del OT_1y_2y
@@ -550,12 +559,12 @@ def worker(args):
             adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][
                 cell_ontology_class2][
                 time_point_old]
-        adata1_yong_pca, adata1_old_pca, adata2_yong_pca, cumulative_explained_variance_ratio = define_function.process_pca(
+        adata1_yong_pca, adata1_old_pca, adata2_yong_pca, cumulative_explained_variance_ratio = process_pca(
             adata1_yong, adata1_old, adata2_yong, adata2_old,
             image_folder_path_pca_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][tissue2][
                 cell_ontology_class2],
             f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}')
-        lambda_, p1, p2 = define_function.wproj_adata(adata1_yong_pca, adata1_old_pca, adata2_yong_pca,
+        lambda_, p1, p2 = wproj_adata(adata1_yong_pca, adata1_old_pca, adata2_yong_pca,
                                                       image_folder_path_pca_dict[cnsecutive_time_point][
                                                           tissue1][cell_ontology_class1][tissue2][
                                                           cell_ontology_class2],

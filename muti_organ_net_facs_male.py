@@ -17,8 +17,9 @@ import csv
 from datetime import datetime
 import os
 import gc
-from multiprocessing import Pool, Manager
+from multiprocessing import Pool, Manager, Process
 import time
+import psutil
 
 # Set up the folder to save the images
 now = datetime.now()
@@ -40,6 +41,8 @@ cnsecutive_time_points = [name.split('_') for name in cnsecutive_time_points]
 tissue_age_dict = {}
 cell_ontology_class_tissue_age_dict = {}
 adata_cell_ontology_class_tissue_age_dict = {}
+mem = psutil.virtual_memory().free / 1e9
+print(f'free memory: {mem} GB')
 
 for cnsecutive_time_point_list in cnsecutive_time_points:
     cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
@@ -53,16 +56,12 @@ for cnsecutive_time_point_list in cnsecutive_time_points:
         adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue] = {}
         cell_ontology_class_folder_path = f'{tissue_folder_path}/{tissue}'
         cell_ontology_class_files_and_folders = os.listdir(cell_ontology_class_folder_path)
-        cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue] = [name for name in
-                                                                              cell_ontology_class_files_and_folders if
-                                                                              os.path.isdir(os.path.join(
-                                                                                  cell_ontology_class_folder_path,
-                                                                                  name))]
-        for cell_ontology_class in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue]:
-            adata = sc.read_h5ad(
-                f'{cell_ontology_class_folder_path}/{cell_ontology_class}/{folder_name}_{cnsecutive_time_point}_{tissue}_{cell_ontology_class}.h5ad')
-            adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue][
-                cell_ontology_class] = define_function.split_adata_by_attribute(adata, 'age')
+        cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue] \
+            = [name for name in cell_ontology_class_files_and_folders
+               if os.path.isdir(os.path.join(cell_ontology_class_folder_path, name))]
+
+mem = psutil.virtual_memory().free / 1e9
+print(f'free memory: {mem} GB')
 
 # tissue_age_dict :{consecutive_time_point: [tissue1, tissue2, ...], ...}
 # cell_ontology_class_tissue_age_dict :{consecutive_time_point: {tissue1: [cell_ontology_class1, cell_ontology_class2, ...], ...}, ...}
@@ -105,6 +104,61 @@ lambda_dict = {}
 p1_dict = {}
 p2_dict = {}
 
+mem = psutil.virtual_memory().free / 1e9
+print(f'free memory: {mem} GB')
+
+
+
+task_list = []
+for cnsecutive_time_point_list in cnsecutive_time_points:
+    cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
+    lambda_dict[cnsecutive_time_point] = [
+        [0 for i in range(len(cell_ontology_class_ticks_dict[cnsecutive_time_point]))] for j in
+        range(len(cell_ontology_class_ticks_dict[cnsecutive_time_point]))]
+    p1_dict[cnsecutive_time_point] = [[0 for i in range(len(cell_ontology_class_ticks_dict[cnsecutive_time_point]))]
+                                      for j in range(len(cell_ontology_class_ticks_dict[cnsecutive_time_point]))]
+    p2_dict[cnsecutive_time_point] = [[0 for i in range(len(cell_ontology_class_ticks_dict[cnsecutive_time_point]))]
+                                      for j in range(len(cell_ontology_class_ticks_dict[cnsecutive_time_point]))]
+    i = 0
+    for tissue1 in tissue_age_dict[cnsecutive_time_point]:
+        for cell_ontology_class1 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1]:
+            j = 0
+            for tissue2 in tissue_age_dict[cnsecutive_time_point]:
+                for cell_ontology_class2 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2]:
+                    task_list.append(
+                        [i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2])
+                    j += 1
+
+            i += 1
+
+if __name__ == '__main__':
+    process_list = []
+    process_num = 10
+    for task in task_list:
+        i = task[0]
+        j = task[1]
+        cnsecutive_time_point = task[2]
+        tissue1 = task[3]
+        cell_ontology_class1 = task[4]
+        tissue2 = task[5]
+        cell_ontology_class2 = task[6]
+        time_point_yong = cnsecutive_time_point_list[0]
+        time_point_old = cnsecutive_time_point_list[1]
+
+        p = Process(target=define_function.worker,
+                    args=(i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2,
+                          lambda_dict, p1_dict, p2_dict, image_folder_path, data_folder_path))
+        process_list.append(p)
+        p.start()
+        print(i, j)
+
+        if len(process_list) == process_num or task.index(task) == len(task_list) - 1:
+            for p in process_list:
+                p.join()
+            process_list = []
+            print(lambda_dict[cnsecutive_time_point])
+
+'''
 if __name__ == '__main__':
     print('start')
     for cnsecutive_time_point_list in cnsecutive_time_points:
@@ -116,12 +170,11 @@ if __name__ == '__main__':
         p2_dict[cnsecutive_time_point] = []
         for tissue1 in tissue_age_dict[cnsecutive_time_point]:
             for cell_ontology_class1 in cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1]:
-                adata1_young = \
-                    adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                        time_point_yong]
-                adata1_old = \
-                    adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue1][cell_ontology_class1][
-                        time_point_old]
+                adata = sc.read_h5ad(
+                    f'{data_folder_path}/{cnsecutive_time_point}/{tissue1}/{cell_ontology_class1}/{folder_name}_{cnsecutive_time_point}_{tissue1}_{cell_ontology_class1}.h5ad')
+                adata_dict = define_function.split_adata_by_attribute(adata, 'age')
+                adata1_young = adata_dict[time_point_yong]
+                adata1_old = adata_dict[time_point_old]
                 lambda_list = []
                 p1_list = []
                 p2_list = []
@@ -133,36 +186,46 @@ if __name__ == '__main__':
                             title = f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}_{time_point_yong}_{time_point_old}'
                             if not os.path.exists(image_folder_path_pca):
                                 os.makedirs(image_folder_path_pca)
-                            adata2_young = adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][cell_ontology_class2][time_point_yong]
-                            adata2_old = adata_cell_ontology_class_tissue_age_dict[cnsecutive_time_point][tissue2][cell_ontology_class2][time_point_old]
-                            adata_integrated = define_function.integrate_adata(adata1_young, adata1_old, adata2_young, adata2_old)
+                            mem = psutil.virtual_memory().free / 1e9
+                            print(f'free memory: {mem} GB')
+                            adata = sc.read_h5ad(
+                                f'{data_folder_path}/{cnsecutive_time_point}/{tissue2}/{cell_ontology_class2}/{folder_name}_{cnsecutive_time_point}_{tissue2}_{cell_ontology_class2}.h5ad')
+                            adata_dict = define_function.split_adata_by_attribute(adata, 'age')
+                            adata2_young = adata_dict[time_point_yong]
+                            adata2_old = adata_dict[time_point_old]
+                            adata_integrated = define_function.integrate_adata(adata1_young, adata1_old, adata2_young,
+                                                                               adata2_old)
+
+                            del adata2_young, adata2_old
 
                             print(tissue1, cell_ontology_class1, tissue2, cell_ontology_class2)
+                            mem = psutil.virtual_memory().free / 1e9
+                            print(f'free memory: {mem} GB')
 
-                            p = Pool(1)
+                            p = Pool(5)
                             print('process start')
-                            result = p.apply_async(define_function.plot_pca, [[adata_integrated, image_folder_path_pca, title]])
-                            print(1)
-                            result.wait()
-                            while not result.ready():
-                                print(result.ready())
-                                time.sleep(1)
-                            adata_integrated = result.get()
-                            p.close()
-
-                            print(2)
-                            cumulative_explained_variance_ratio = adata_integrated.uns['pca']['variance_ratio'].sum()
+                            adata_integrated_pca = p.apply(define_function.plot_pca,
+                                                           [[adata_integrated, image_folder_path_pca, title]])
+                            cumulative_explained_variance_ratio = adata_integrated_pca.uns['pca'][
+                                'variance_ratio'].sum()
                             print(3)
-                            adata1_young.obsm['X_pca'] = adata_integrated[adata1_young.obs.index].obsm['X_pca']
-                            adata1_old.obsm['X_pca'] = adata_integrated[adata1_old.obs.index].obsm['X_pca']
-                            adata2_young.obsm['X_pca'] = adata_integrated[adata2_young.obs.index].obsm['X_pca']
+                            adata1_young_pca = adata_integrated_pca[
+                                adata_integrated_pca.obs['group'] == f'{tissue1}_{cell_ontology_class1}_yong']
+                            adata1_old_pca = adata_integrated_pca[
+                                adata_integrated_pca.obs['group'] == f'{tissue1}_{cell_ontology_class1}_old']
+                            adata2_young_pca = adata_integrated_pca[
+                                adata_integrated_pca.obs['group'] == f'{tissue2}_{cell_ontology_class2}_yong']
                             print(cumulative_explained_variance_ratio)
+                            print(4)
+                            lambda_, p1, p2 = p.apply(define_function.wproj_adata, [
+                                [adata1_young_pca, adata1_old_pca, adata2_young_pca, image_folder_path_pca, title]])
+                            del adata_integrated_pca
 
-                            p = Pool(1)
-                            result = p.apply_async(define_function.wproj_adata([[adata1_young, adata1_old, adata2_young,image_folder_path_pca, title]]))
-                            result.wait()
-                            lambda_, p1, p2 = result.get()
-                            p.close()
+                            p.close()  # no more tasks
+                            p.join()  # block until all tasks are done
+
+                            mem = psutil.virtual_memory().free / 1e9
+                            print(f'free memory: {mem} GB')
 
                             lambda_list.append(lambda_)
                             p1_list.append(p1)
@@ -170,7 +233,15 @@ if __name__ == '__main__':
                             print(lambda_, p1, p2)
 
                             print('process end')
-                            print(lambda_list)
+                            print(len(lambda_list))
+
+                            del adata_integrated, adata, adata_dict
+                            del lambda_, p1, p2
+                            del p, cumulative_explained_variance_ratio, image_folder_path_pca, title
+                            gc.collect()
+
+                            mem = psutil.virtual_memory().free / 1e9
+                            print(f'free memory: {mem} GB')
 
                         else:
                             lambda_list.append(0)
@@ -202,7 +273,7 @@ if __name__ == '__main__':
 else:
     print('not start')
 
-'''
+
 if __name__ == '__main__':
     tasks_dict = {}
     for cnsecutive_time_point_list in cnsecutive_time_points:

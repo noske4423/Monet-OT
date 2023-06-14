@@ -17,7 +17,7 @@ import csv
 from datetime import datetime
 import os
 import gc
-from multiprocessing import Pool, Manager, Process
+from multiprocessing import Pool, Manager, Process, Queue
 import time
 import psutil
 
@@ -107,8 +107,6 @@ p2_dict = {}
 mem = psutil.virtual_memory().free / 1e9
 print(f'free memory: {mem} GB')
 
-
-
 task_list = []
 for cnsecutive_time_point_list in cnsecutive_time_points:
     cnsecutive_time_point = '_'.join(cnsecutive_time_point_list)
@@ -135,8 +133,8 @@ if __name__ == '__main__':
     process_list = []
     process_num = 10
     for task in task_list:
-        i = task[0]
-        j = task[1]
+        i = int(task[0])
+        j = int(task[1])
         cnsecutive_time_point = task[2]
         tissue1 = task[3]
         cell_ontology_class1 = task[4]
@@ -145,18 +143,29 @@ if __name__ == '__main__':
         time_point_yong = cnsecutive_time_point_list[0]
         time_point_old = cnsecutive_time_point_list[1]
 
-        p = Process(target=define_function.worker,
-                    args=(i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2,
-                          lambda_dict, p1_dict, p2_dict, image_folder_path, data_folder_path))
-        process_list.append(p)
-        p.start()
-        print(i, j)
+        if i != j:
+            q = Queue()
+            p = Process(target=define_function.worker,
+                        args=[
+                            [i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2,
+                             folder_name, image_folder_path, data_folder_path, q]])
+            process_list.append(p)
+            p.start()
+            print(i, j)
 
-        if len(process_list) == process_num or task.index(task) == len(task_list) - 1:
-            for p in process_list:
-                p.join()
-            process_list = []
-            print(lambda_dict[cnsecutive_time_point])
+            if len(process_list) == process_num or task_list.index(task) == len(task_list) - 1:
+                for p in process_list:
+                    p.join()  # wait for all process to finish
+                    result = q.get()
+                    lambda_, p1, p2 = result[0], result[1], result[2]
+                    lambda_dict[cnsecutive_time_point][i][j] = lambda_
+                    p1_dict[cnsecutive_time_point][i][j] = p1
+                    p2_dict[cnsecutive_time_point][i][j] = p2
+
+                process_list = []
+                print(lambda_dict[cnsecutive_time_point])
+                mem = psutil.virtual_memory().free / 1e9
+                print(f'free memory: {mem} GB')
 
 '''
 if __name__ == '__main__':

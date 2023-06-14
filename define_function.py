@@ -6,7 +6,7 @@ import ot
 import matplotlib.pylab as pl
 import os
 import gc
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager, Process, Queue
 
 
 def sort_adata_by_attribute(adata, attribute):
@@ -364,8 +364,8 @@ def reconstruct_adata(adata_list):
 
     return adata_list_new
 
-def plot(args):
-    x, y, folder_name, title, plot_title, x_name, y_name = args
+
+def plot(x, y, folder_name, title, plot_title, x_name, y_name):
     pl.plot(x, y, 'x')
     pl.title(f'{plot_title}_{title}')
     pl.xlabel(x_name)
@@ -374,12 +374,11 @@ def plot(args):
     pl.close()
 
 
-def plot_pca(args, color='group', n_pcs=50):
+def plot_pca(adata, folder_name, title, color='group', n_pcs=50):
     """Plots PCA for the data.
 
 :param arg: List containing the arguments for the function
     """
-    adata, folder_name, title = args
 
     sc.tl.pca(adata, n_comps=n_pcs)
     fig = sc.pl.pca(adata, color=color, return_fig=True)
@@ -438,9 +437,7 @@ def integrate_adata(adata1, adata1_next, adata2, adata2_next, highly_variable_ge
     return integrate_adata
 
 
-
-def wproj_adata(args):
-    adata1_young, adata1_old, adata2_young, folder_name, title = args
+def wproj_adata(adata1_young, adata1_old, adata2_young, folder_name, title):
     lambda_list = []
     W_list = []
     x1_young = np.array(adata1_young.obsm['X_pca'])
@@ -530,7 +527,7 @@ def wproj_adata(args):
         W_bc_1o = W_bc_1o_new
         n += 1  # increase n by 1
 
-    plot([lambda_list, W_list, folder_name, title, 'lambda_W', r'\lambda', r'$W(Bar(\lambda),A_{old})$'])
+    plot(lambda_list, W_list, folder_name, title, 'lambda_W', r'\lambda', r'$W(Bar(\lambda),A_{old})$')
 
     del lambda_list, W_list
     del M_1y_1o, M_1y_2y, M_2y_1o, M_bc_1o
@@ -541,22 +538,28 @@ def wproj_adata(args):
 
     return lambda_, p1, p2
 
-def get_adata(tissue, cell_ontology_class, cnsecutive_time_point,folder_name, time_point,data_folder_path):
+
+def get_adata(tissue, cell_ontology_class, cnsecutive_time_point, time_point, folder_name, data_folder_path):
     adata = sc.read(
         f'{data_folder_path}/{cnsecutive_time_point}/{tissue}/{cell_ontology_class}/{folder_name}_{cnsecutive_time_point}_{tissue}_{cell_ontology_class}.h5ad')
-    adata = adata[adata.obs['time_point'] == time_point]
+    adata = adata[adata.obs['age'] == time_point]
 
     return adata
 
+
 def worker(args):
-    i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2, lambda_dict, p1_dict, p2_dict,image_folder_path,data_folder_path = args
+    i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2, folder_name, image_folder_path, data_folder_path, queue = args
     time_point_yong = cnsecutive_time_point.split('_')[0]
     time_point_old = cnsecutive_time_point.split('_')[1]
 
-    adata1_young = get_adata(tissue1, cell_ontology_class1, cnsecutive_time_point, time_point_yong,data_folder_path)
-    adata1_old = get_adata(tissue1, cell_ontology_class1, cnsecutive_time_point, time_point_old,data_folder_path)
-    adata2_young = get_adata(tissue2, cell_ontology_class2, cnsecutive_time_point, time_point_yong,data_folder_path)
-    adata2_old = get_adata(tissue2, cell_ontology_class2, cnsecutive_time_point, time_point_old,data_folder_path)
+    adata1_young = get_adata(tissue1, cell_ontology_class1, cnsecutive_time_point, time_point_yong, folder_name,
+                             data_folder_path)
+    adata1_old = get_adata(tissue1, cell_ontology_class1, cnsecutive_time_point, time_point_old, folder_name,
+                           data_folder_path)
+    adata2_young = get_adata(tissue2, cell_ontology_class2, cnsecutive_time_point, time_point_yong, folder_name,
+                             data_folder_path)
+    adata2_old = get_adata(tissue2, cell_ontology_class2, cnsecutive_time_point, time_point_old, folder_name,
+                           data_folder_path)
 
     image_folder_path_pca = f'{image_folder_path}/{cnsecutive_time_point}/{tissue1}/{cell_ontology_class1}/{tissue2}/{cell_ontology_class2}'
     title = f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}_{time_point_yong}_{time_point_old}'
@@ -577,11 +580,10 @@ def worker(args):
     print(cumulative_explained_variance_ratio)
 
     lambda_, p1, p2 = wproj_adata(adata1_young_pca, adata1_old_pca, adata2_young_pca,
-                                                  image_folder_path_pca, title)
+                                  image_folder_path_pca, title)
 
-    lambda_dict[cnsecutive_time_point][i][j] = lambda_
-    p1_dict[cnsecutive_time_point][i][j] = p1
-    p2_dict[cnsecutive_time_point][i][j] = p2
+    queue.put([lambda_, p1, p2])
+
 
 def wproj_adata_list(adata_list, m, n):
     """Computes projection weights and distances for each pair of samples.

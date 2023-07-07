@@ -165,6 +165,7 @@ def adjust_and_save_plot(adata, folder_path, title, method, min_value_1, max_val
             legend = ax.get_legend()
 
             pl.savefig(f'{folder_path}/{title}.png', bbox_extra_artists=(legend,), bbox_inches='tight')
+            pl.close()
 
     elif method == 'umap':
         if color == None:
@@ -396,14 +397,14 @@ def plot_pca(adata, folder_name, title, color='group', n_pcs=50):
 
 def integrate_adata(adata1, adata1_next, adata2, adata2_next, highly_variable_genes=True):
     # print(highly_variable_genes)
-    tissue1 = adata1.obs['tissue'].unique()[0]
-    tissue2 = adata2.obs['tissue'].unique()[0]
-    cell_ontology_class1 = adata1.obs['cell_ontology_class'].unique()[0]
-    cell_ontology_class2 = adata2.obs['cell_ontology_class'].unique()[0]
-    adata1.obs['group'] = f'{tissue1}_{cell_ontology_class1}_yong'
-    adata1_next.obs['group'] = f'{tissue1}_{cell_ontology_class1}_old'
-    adata2.obs['group'] = f'{tissue2}_{cell_ontology_class2}_yong'
-    adata2_next.obs['group'] = f'{tissue2}_{cell_ontology_class2}_old'
+    tissue1 = adata1.obs['organ'].unique()[0]
+    tissue2 = adata2.obs['organ'].unique()[0]
+    cell_ontology_class1 = adata1.obs['cell_type'].unique()[0]
+    cell_ontology_class2 = adata2.obs['cell_type'].unique()[0]
+    adata1.obs.loc[:, 'group'] = f'{tissue1}_{cell_ontology_class1}_yong'
+    adata1_next.obs.loc[:, 'group'] = f'{tissue1}_{cell_ontology_class1}_old'
+    adata2.obs.loc[:, 'group'] = f'{tissue2}_{cell_ontology_class2}_yong'
+    adata2_next.obs.loc[:, 'group'] = f'{tissue2}_{cell_ontology_class2}_old'
 
     integrate_adata = ad.concat([adata1, adata1_next, adata2])
     if highly_variable_genes == True:
@@ -547,8 +548,106 @@ def get_adata(tissue, cell_ontology_class, cnsecutive_time_point, time_point, fo
     return adata
 
 
+def worker_ku_scrnaseq(args):
+    k, i, j, organ1, celltype1, organ2, celltype2 = args
+    ms_path = '/Users/kataokayuunosuke/MS'
+    disease_list = ['WT', 'AD']
+
+    # load anndata
+    integrated_adata_path = f'{ms_path}/anndata/integrate_adata_sample.h5ad'
+    integrated_adata = sc.read_h5ad(integrated_adata_path)
+
+    time_point_list = integrated_adata.obs['time.point'].unique().tolist()
+    ctime_point_list = []
+    for l in range(len(time_point_list) - 1):
+        ctime_point_list.append(f'{time_point_list[l]}_{time_point_list[l + 1]}')
+
+    if i == j:
+        for ctime_point in ctime_point_list:
+            time_point_y = ctime_point.split('_')[0]
+            time_point_o = ctime_point.split('_')[1]
+
+            for disease in disease_list:
+                lambda_ = 0
+                p1 = 0
+                p2 = 0
+                cevr = 1
+                result_path = f'{ms_path}/organomix/{disease}_{time_point_y}_{time_point_o}_result.txt'
+
+                # save result
+                with open(result_path, mode='a') as f:
+                    f.write('\n' + str(k) + '\t' + str(i) + '\t' + str(j) + '\t' + str(lambda_) + '\t' + str(
+                        p1) + '\t' + str(p2) + '\t' + str(cevr))
+
+                # load result
+                # result_path = f'{ms_path}/organomix/{disease}_{time_point_y}_{time_point_o}_result.txt'
+                # with open(result_path, mode='r') as f:
+                #    result = f.read().splitlines()
+                # result = result[1:]
+                # result = [i.split('\t') for i in result]
+
+    else:
+        hvg_list_path = f'{ms_path}/high_variable_genes/{organ1}_{celltype1}_high_variable_genes_list.txt'
+        with open(hvg_list_path, mode='r') as f:
+            hvg_list1 = f.read().splitlines()
+        hvg_list_path = f'{ms_path}/high_variable_genes/{organ2}_{celltype2}_high_variable_genes_list.txt'
+        with open(hvg_list_path, mode='r') as f:
+            hvg_list2 = f.read().splitlines()
+        hvg_list = list(set(hvg_list1) | set(hvg_list2))  # hvg_list1とhvg_list2の和集合
+        print(len(hvg_list))
+
+        for ctime_point in ctime_point_list:
+            time_point_y = ctime_point.split('_')[0]
+            time_point_o = ctime_point.split('_')[1]
+
+            for disease in disease_list:
+                adata_1y = integrated_adata[(integrated_adata.obs['organ'] == organ1)
+                                           & (integrated_adata.obs['cell_type'] == celltype1)
+                                           & (integrated_adata.obs['time.point'] == float(time_point_y))
+                                           & (integrated_adata.obs['disease'] == disease)]
+                adata_1o = integrated_adata[(integrated_adata.obs['organ'] == organ1)
+                                           & (integrated_adata.obs['cell_type'] == celltype1)
+                                           & (integrated_adata.obs['time.point'] == float(time_point_o))
+                                           & (integrated_adata.obs['disease'] == disease)]
+                adata_2y = integrated_adata[(integrated_adata.obs['organ'] == organ2)
+                                           & (integrated_adata.obs['cell_type'] == celltype2)
+                                           & (integrated_adata.obs['time.point'] == float(time_point_y))
+                                           & (integrated_adata.obs['disease'] == disease)]
+                adata_2o = integrated_adata[(integrated_adata.obs['organ'] == organ2)
+                                           & (integrated_adata.obs['cell_type'] == celltype2)
+                                           & (integrated_adata.obs['time.point'] == float(time_point_o))
+                                           & (integrated_adata.obs['disease'] == disease)]
+                adata_1y = adata_1y[:, hvg_list]
+                adata_1o = adata_1o[:, hvg_list]
+                adata_2y = adata_2y[:, hvg_list]
+                adata_2o = adata_2o[:, hvg_list]
+
+                image_folder_path_pca = f'{ms_path}/image/{organ1}_{celltype1}/{organ2}_{celltype2}'
+                title = f'{disease}_{time_point_y}_{time_point_o}_{organ1}_{celltype1}_{organ2}_{celltype2}'
+                if not os.path.exists(image_folder_path_pca):
+                    os.makedirs(image_folder_path_pca)
+
+                adata_integrated = integrate_adata(adata_1y, adata_1o, adata_2y, adata_2o,
+                                                   highly_variable_genes=False)
+                adata_integrated_pca = plot_pca(adata_integrated, image_folder_path_pca, title)
+                cevr = adata_integrated_pca.uns['pca'][
+                    'variance_ratio'].sum()
+                print(cevr)
+                adata1y_pca = adata_integrated_pca[adata_integrated_pca.obs['group'] == f'{organ1}_{celltype1}_yong']
+                adata1o_pca = adata_integrated_pca[adata_integrated_pca.obs['group'] == f'{organ1}_{celltype1}_old']
+                adata2y_pca = adata_integrated_pca[adata_integrated_pca.obs['group'] == f'{organ2}_{celltype2}_yong']
+
+                lambda_, p1, p2 = wproj_adata(adata1y_pca, adata1o_pca, adata2y_pca, image_folder_path_pca, title)
+
+                # save result
+                result_path = f'{ms_path}/organomix/{disease}_{time_point_y}_{time_point_o}_result.txt'
+                with open(result_path, mode='a') as f:
+                    f.write('\n' + str(k) + '\t' + str(i) + '\t' + str(j) + '\t' + str(lambda_) + '\t' + str(
+                        p1) + '\t' + str(p2) + '\t' + str(cevr))
+
+
 def worker(args):
-    i, j, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2, folder_name, image_folder_path, data_folder_path, queue = args
+    index, cnsecutive_time_point, tissue1, cell_ontology_class1, tissue2, cell_ontology_class2, folder_name, image_folder_path, data_folder_path = args
     time_point_yong = cnsecutive_time_point.split('_')[0]
     time_point_old = cnsecutive_time_point.split('_')[1]
 
@@ -562,7 +661,7 @@ def worker(args):
                            data_folder_path)
 
     image_folder_path_pca = f'{image_folder_path}/{cnsecutive_time_point}/{tissue1}/{cell_ontology_class1}/{tissue2}/{cell_ontology_class2}'
-    title = f'{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}_{time_point_yong}_{time_point_old}'
+    title = f'{cnsecutive_time_point}_{tissue1}_{cell_ontology_class1}_{tissue2}_{cell_ontology_class2}'
 
     if not os.path.exists(image_folder_path_pca):
         os.makedirs(image_folder_path_pca)
@@ -581,8 +680,11 @@ def worker(args):
 
     lambda_, p1, p2 = wproj_adata(adata1_young_pca, adata1_old_pca, adata2_young_pca,
                                   image_folder_path_pca, title)
+    print(lambda_, p1, p2)
 
-    queue.put([lambda_, p1, p2])
+    # save [lambda, p1, p2,index]
+    with open(f'{image_folder_path_pca}/{title}_lambda_p1_p2.txt', 'w') as f:
+        f.write(f'{lambda_},{p1},{p2},{index}')
 
 
 def wproj_adata_list(adata_list, m, n):

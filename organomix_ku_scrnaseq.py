@@ -73,7 +73,7 @@ for organ1 in organ_list:
 if __name__ == '__main__':
     process_list = []
     process_num = 50
-    l = 200
+    l = 600
     for organ_celltype in organ_celltype_list[l:]:
         k = organ_celltype[0]
         i = organ_celltype[1]

@@ -186,7 +186,7 @@ def adjust_and_save_plot(adata, folder_path, title, method, min_value_1, max_val
             pl.close()
 
         else:
-            title = f'{method}_{title}_{color}'
+            title = f'{method}_{title}_{color}_{adata.n_obs}cells'
             fig = sc.pl.umap(adata, color=color, return_fig=True)
             ax = fig.gca()
             ax.set_xlim(min_value_1 - (max_value_1 - min_value_1) * 0.05,
